@@ -1,5 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useData, Candidate, Vacancy, VisaType, RTWStatus as RTWStatusType, CompStatus } from "./DataStore";
+import CreateVacancyForm from "./CreateVacancyForm";
+import AddCandidateForm from "./AddCandidateForm";
 import {
   Shield, BarChart3, Users, Briefcase, FileCheck, Clock, AlertTriangle,
   ChevronRight, Search, Filter, Plus, Upload, Send, Eye, CheckCircle2,
@@ -8,53 +11,28 @@ import {
   Plane, Flag, CircleDot
 } from "lucide-react";
 
-// Demo data
-const councils = [
-  { name: "Manchester City Council", vacancies: 12, candidates: 34, compliance: 78, status: "active" },
-  { name: "Salford City Council", vacancies: 8, candidates: 21, compliance: 85, status: "active" },
-  { name: "Stockport MBC", vacancies: 5, candidates: 14, compliance: 92, status: "active" },
-  { name: "Trafford Council", vacancies: 3, candidates: 8, compliance: 100, status: "pilot" },
-];
-
-const vacancies = [
-  { id: "V-2024-001", council: "Manchester CC", role: "Senior Social Worker — Children's", grade: "Grade 10", salary: "£42,708 - £46,731", status: "live", applicants: 8, shortlisted: 3, daysOpen: 12 },
-  { id: "V-2024-002", council: "Manchester CC", role: "Team Manager — Safeguarding", grade: "Grade 12", salary: "£52,805 - £56,024", status: "live", applicants: 4, shortlisted: 1, daysOpen: 21 },
-  { id: "V-2024-003", council: "Salford CC", role: "ASYE Social Worker", grade: "Grade 8", salary: "£33,945 - £37,336", status: "live", applicants: 14, shortlisted: 5, daysOpen: 7 },
-  { id: "V-2024-004", council: "Stockport MBC", role: "Practice Manager — Adults", grade: "Grade 11", salary: "£47,754 - £51,802", status: "interviewing", applicants: 6, shortlisted: 3, daysOpen: 28 },
-  { id: "V-2024-005", council: "Manchester CC", role: "Social Worker — MASH", grade: "Grade 9", salary: "£37,336 - £40,476", status: "offer", applicants: 11, shortlisted: 4, daysOpen: 35 },
-  { id: "V-2024-006", council: "Trafford", role: "Senior Practitioner — LAC", grade: "Grade 10", salary: "£42,708 - £46,731", status: "draft", applicants: 0, shortlisted: 0, daysOpen: 0 },
-];
-
-const candidates = [
-  { name: "Sarah Mitchell", role: "Senior Social Worker", pqe: "6 years", swe: "SW98234", sweStatus: "active", match: 94, source: "PSP Network", visa: "british_citizen", visaDetails: "British Citizen — No sponsorship required", dbs: "clear", ref1: "received", ref2: "pending", rtw: "verified", quals: "verified", location: "Manchester", available: "2 weeks", phone: "07912 345678", email: "s.mitchell@email.com", crossCouncil: false },
-  { name: "David Williams", role: "Team Manager", pqe: "11 years", swe: "SW67891", sweStatus: "active", match: 89, source: "Direct", visa: "settled_status", visaDetails: "EU Settled Status — Indefinite leave to remain", dbs: "clear", ref1: "received", ref2: "received", rtw: "verified", quals: "verified", location: "Salford", available: "1 month", phone: "07845 678901", email: "d.williams@email.com", crossCouncil: true },
-  { name: "Amara Osei", role: "Social Worker", pqe: "3 years", swe: "SW45123", sweStatus: "active", match: 87, source: "Agency", visa: "skilled_worker", visaDetails: "Skilled Worker Visa — Expires 15/08/2027 — Requires sponsorship", dbs: "pending", ref1: "received", ref2: "chasing", rtw: "requires_sponsorship", quals: "verified", location: "Bolton", available: "Immediate", phone: "07723 456789", email: "a.osei@email.com", crossCouncil: false },
-  { name: "Michael Chen", role: "ASYE Social Worker", pqe: "NQ", swe: "SW78456", sweStatus: "active", match: 82, source: "PSP Network", visa: "graduate_visa", visaDetails: "Graduate Visa — Expires 01/03/2027 — Will need sponsorship for extension", dbs: "clear", ref1: "pending", ref2: "pending", rtw: "time_limited", quals: "pending", location: "Stockport", available: "Immediate", phone: "07634 567890", email: "m.chen@email.com", crossCouncil: false },
-  { name: "Priya Sharma", role: "Senior Social Worker", pqe: "8 years", swe: "SW34567", sweStatus: "active", match: 91, source: "WhatsApp", visa: "british_citizen", visaDetails: "British Citizen — No sponsorship required", dbs: "clear", ref1: "received", ref2: "received", rtw: "verified", quals: "verified", location: "Bury", available: "3 weeks", phone: "07567 890123", email: "p.sharma@email.com", crossCouncil: true },
-  { name: "Fatima Al-Hassan", role: "Social Worker", pqe: "4 years", swe: "SW89012", sweStatus: "conditions", match: 78, source: "Direct", visa: "spouse_visa", visaDetails: "Spouse Visa — Expires 22/11/2026 — Eligible to work, no sponsorship needed", dbs: "clear", ref1: "received", ref2: "chasing", rtw: "verified", quals: "verified", location: "Oldham", available: "1 month", phone: "07456 789012", email: "f.alhassan@email.com", crossCouncil: false },
-  { name: "James Adeyemi", role: "Practice Manager", pqe: "9 years", swe: "SW56789", sweStatus: "active", match: 85, source: "PSP Network", visa: "health_care_visa", visaDetails: "Health & Care Worker Visa — Expires 30/06/2028 — Council must hold sponsor licence", dbs: "pending", ref1: "pending", ref2: "pending", rtw: "requires_sponsorship", quals: "verified", location: "Rochdale", available: "6 weeks", phone: "07345 678901", email: "j.adeyemi@email.com", crossCouncil: false },
-];
-
 function VisaBadge({ visa }: { visa: string }) {
   switch (visa) {
     case "british_citizen":
-      return <span className="badge badge-green">🇬🇧 British Citizen</span>;
+      return <span className="badge badge-green">British Citizen</span>;
     case "settled_status":
-      return <span className="badge badge-green">🇪🇺 Settled Status</span>;
+      return <span className="badge badge-green">Settled Status</span>;
     case "skilled_worker":
-      return <span className="badge badge-amber">⚠️ Skilled Worker Visa</span>;
+      return <span className="badge badge-amber">Skilled Worker Visa</span>;
     case "graduate_visa":
-      return <span className="badge badge-amber">🎓 Graduate Visa</span>;
+      return <span className="badge badge-amber">Graduate Visa</span>;
     case "spouse_visa":
-      return <span className="badge badge-green">💍 Spouse Visa</span>;
+      return <span className="badge badge-green">Spouse Visa</span>;
     case "health_care_visa":
-      return <span className="badge badge-amber">🏥 Health & Care Visa</span>;
+      return <span className="badge badge-amber">Health & Care Visa</span>;
+    case "pre_settled":
+      return <span className="badge badge-green">Pre-Settled Status</span>;
     default:
       return <span className="badge badge-gray">Unknown</span>;
   }
 }
 
-function RTWStatus({ rtw, visa }: { rtw: string; visa: string }) {
+function RTWStatusBadge({ rtw, visa }: { rtw: string; visa: string }) {
   if (rtw === "verified" && (visa === "british_citizen" || visa === "settled_status" || visa === "spouse_visa"))
     return <span className="badge badge-green"><CheckCircle2 size={12} /> RTW Verified</span>;
   if (rtw === "requires_sponsorship")
@@ -63,13 +41,32 @@ function RTWStatus({ rtw, visa }: { rtw: string; visa: string }) {
     return <span className="badge badge-amber"><Clock size={12} /> Time-Limited</span>;
   if (rtw === "verified")
     return <span className="badge badge-green"><CheckCircle2 size={12} /> RTW Verified</span>;
+  if (rtw === "expired")
+    return <span className="badge badge-red"><XCircle size={12} /> Expired</span>;
   return <span className="badge badge-gray"><Clock size={12} /> Pending</span>;
+}
+
+const vacancyStatuses: Vacancy["status"][] = ["draft", "live", "interviewing", "offer", "filled", "closed"];
+const candidateStatuses: Candidate["status"][] = ["new", "screening", "shortlisted", "interviewing", "offered", "hired", "rejected", "withdrawn"];
+
+function statusBadgeClass(status: string): string {
+  switch (status) {
+    case "live": case "active": case "hired": case "done": return "badge-green";
+    case "interviewing": case "screening": case "shortlisted": return "badge-blue";
+    case "offer": case "offered": return "badge-purple";
+    case "filled": return "badge-green";
+    case "closed": case "rejected": case "withdrawn": return "badge-gray";
+    case "new": return "badge-blue";
+    case "draft": return "badge-gray";
+    default: return "badge-gray";
+  }
 }
 
 export default function PSPView() {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [selectedCandidate, setSelectedCandidate] = useState<typeof candidates[0] | null>(null);
-  const [showVisaModal, setShowVisaModal] = useState(false);
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [showCreateVacancy, setShowCreateVacancy] = useState(false);
+  const [showAddCandidate, setShowAddCandidate] = useState(false);
 
   const tabs = [
     { id: "dashboard", label: "Command Centre", icon: <BarChart3 size={16} /> },
@@ -82,6 +79,9 @@ export default function PSPView() {
 
   return (
     <div style={{ minHeight: "100vh" }}>
+      <CreateVacancyForm open={showCreateVacancy} onClose={() => setShowCreateVacancy(false)} />
+      <AddCandidateForm open={showAddCandidate} onClose={() => setShowAddCandidate(false)} />
+
       {/* Top Nav */}
       <header style={{ background: "var(--psp-green-dark)", padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 56 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -90,7 +90,7 @@ export default function PSPView() {
           <span style={{ color: "var(--psp-gold)", fontSize: 12, fontWeight: 600, background: "rgba(212,168,67,0.2)", padding: "2px 8px", borderRadius: 4 }}>PSP ADMIN</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>4 councils &middot; 28 active vacancies</span>
+          <HeaderStats />
           <div style={{ width: 32, height: 32, background: "var(--psp-gold)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, color: "var(--psp-green-dark)" }}>CC</div>
         </div>
       </header>
@@ -106,12 +106,12 @@ export default function PSPView() {
 
       {/* Content */}
       <main style={{ padding: 24, maxWidth: 1400, margin: "0 auto" }}>
-        {activeTab === "dashboard" && <DashboardTab />}
-        {activeTab === "vacancies" && <VacanciesTab />}
+        {activeTab === "dashboard" && <DashboardTab onCreateVacancy={() => setShowCreateVacancy(true)} onAddCandidate={() => setShowAddCandidate(true)} />}
+        {activeTab === "vacancies" && <VacanciesTab onCreateVacancy={() => setShowCreateVacancy(true)} />}
         {activeTab === "candidates" && (
           selectedCandidate
             ? <CandidateDetail candidate={selectedCandidate} onBack={() => setSelectedCandidate(null)} />
-            : <CandidatesTab onSelectCandidate={setSelectedCandidate} />
+            : <CandidatesTab onSelectCandidate={setSelectedCandidate} onAddCandidate={() => setShowAddCandidate(true)} />
         )}
         {activeTab === "compliance" && <ComplianceTab />}
         {activeTab === "retention" && <RetentionTab />}
@@ -121,18 +121,116 @@ export default function PSPView() {
   );
 }
 
-function DashboardTab() {
+function HeaderStats() {
+  const { vacancies, candidates } = useData();
+  const activeVacancies = vacancies.filter(v => v.status === "live" || v.status === "interviewing" || v.status === "offer").length;
+  const uniqueCouncils = new Set(vacancies.map(v => v.council)).size;
+  return (
+    <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>{uniqueCouncils} councils &middot; {activeVacancies} active vacancies</span>
+  );
+}
+
+function DashboardTab({ onCreateVacancy, onAddCandidate }: { onCreateVacancy: () => void; onAddCandidate: () => void }) {
+  const { vacancies, candidates, showToast } = useData();
+
+  const activeVacancies = vacancies.filter(v => v.status === "live" || v.status === "interviewing" || v.status === "offer").length;
+  const candidatesInPipeline = candidates.filter(c => c.status !== "hired" && c.status !== "rejected" && c.status !== "withdrawn").length;
+  const awaitingInterview = candidates.filter(c => c.status === "shortlisted" || c.status === "interviewing").length;
+  const offersThisMonth = candidates.filter(c => c.status === "offered" || c.status === "hired").length;
+  const avgDaysOpen = vacancies.length > 0 ? Math.round(vacancies.reduce((sum, v) => sum + v.daysOpen, 0) / vacancies.length) : 0;
+
+  const noSponsorCount = candidates.filter(c => c.visa === "british_citizen" || c.visa === "settled_status" || c.visa === "spouse_visa" || c.visa === "pre_settled").length;
+  const requiresSponsorCount = candidates.filter(c => c.rtw === "requires_sponsorship").length;
+  const expiringCount = candidates.filter(c => {
+    if (!c.visaExpiry) return false;
+    const exp = new Date(c.visaExpiry);
+    const sixMonths = new Date();
+    sixMonths.setMonth(sixMonths.getMonth() + 6);
+    return exp < sixMonths;
+  }).length;
+  const pendingRtwCount = candidates.filter(c => c.rtw === "pending").length;
+
+  // Council overview computed from real data
+  const councilMap = useMemo(() => {
+    const map = new Map<string, { vacancies: number; candidates: number; compChecks: number; compTotal: number }>();
+    for (const v of vacancies) {
+      const c = v.council;
+      if (!map.has(c)) map.set(c, { vacancies: 0, candidates: 0, compChecks: 0, compTotal: 0 });
+      map.get(c)!.vacancies++;
+    }
+    for (const cand of candidates) {
+      if (cand.assignedVacancy) {
+        const vac = vacancies.find(v => v.id === cand.assignedVacancy);
+        if (vac) {
+          const council = vac.council;
+          if (!map.has(council)) map.set(council, { vacancies: 0, candidates: 0, compChecks: 0, compTotal: 0 });
+          const entry = map.get(council)!;
+          entry.candidates++;
+          const checks = [cand.sweStatus === "active", cand.dbs === "done", cand.ref1 === "done", cand.ref2 === "done", cand.rtw === "verified", cand.quals === "done"];
+          entry.compTotal += checks.length;
+          entry.compChecks += checks.filter(Boolean).length;
+        }
+      }
+    }
+    return map;
+  }, [vacancies, candidates]);
+
+  const councilOverview = useMemo(() => {
+    const councils = Array.from(councilMap.entries()).map(([name, data]) => ({
+      name,
+      vacancies: data.vacancies,
+      candidates: data.candidates,
+      compliance: data.compTotal > 0 ? Math.round((data.compChecks / data.compTotal) * 100) : 100,
+      status: "active" as const,
+    }));
+    return councils.sort((a, b) => b.vacancies - a.vacancies);
+  }, [councilMap]);
+
+  // Urgent actions from real data
+  const urgentActions = useMemo(() => {
+    const actions: { text: string; type: "visa" | "compliance"; council: string }[] = [];
+    for (const c of candidates) {
+      if (c.rtw === "requires_sponsorship") {
+        const vac = c.assignedVacancy ? vacancies.find(v => v.id === c.assignedVacancy) : null;
+        const council = vac ? vac.council : "Unassigned";
+        if (c.visa === "skilled_worker") {
+          actions.push({ text: `${c.name} — Skilled Worker Visa requires council sponsorship confirmation before start date`, type: "visa", council });
+        } else if (c.visa === "health_care_visa") {
+          actions.push({ text: `${c.name} — Health & Care Visa candidate — verify council holds sponsor licence`, type: "visa", council });
+        }
+      }
+      if (c.rtw === "time_limited") {
+        const vac = c.assignedVacancy ? vacancies.find(v => v.id === c.assignedVacancy) : null;
+        const council = vac ? vac.council : "Unassigned";
+        actions.push({ text: `${c.name} — Graduate Visa expires ${c.visaExpiry || "soon"} — flag to council re: sponsorship for extension`, type: "visa", council });
+      }
+      if (c.dbs === "pending") {
+        actions.push({ text: `${c.name} — DBS application pending — follow up`, type: "compliance", council: "Multiple" });
+      }
+      if (c.ref2 === "warning" || c.ref2 === "pending") {
+        actions.push({ text: `${c.name} — Reference 2 outstanding — manual follow-up needed`, type: "compliance", council: "Multiple" });
+      }
+    }
+    return actions.slice(0, 6);
+  }, [candidates, vacancies]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <h2 style={{ fontSize: 24, fontWeight: 700 }}>Command Centre</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2 style={{ fontSize: 24, fontWeight: 700 }}>Command Centre</h2>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn btn-outline" onClick={onAddCandidate}><Plus size={16} /> Add Candidate</button>
+          <button className="btn btn-primary" onClick={onCreateVacancy}><Plus size={16} /> Create Vacancy</button>
+        </div>
+      </div>
 
       {/* Stats Row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
-        <div className="stat-card"><span className="stat-value" style={{ color: "var(--psp-green)" }}>28</span><span className="stat-label">Active Vacancies</span></div>
-        <div className="stat-card"><span className="stat-value" style={{ color: "var(--status-blue)" }}>77</span><span className="stat-label">Candidates in Pipeline</span></div>
-        <div className="stat-card"><span className="stat-value" style={{ color: "var(--status-amber)" }}>6</span><span className="stat-label">Awaiting Interview</span></div>
-        <div className="stat-card"><span className="stat-value" style={{ color: "var(--status-green)" }}>14</span><span className="stat-label">Offers Made This Month</span></div>
-        <div className="stat-card"><span className="stat-value" style={{ color: "#7c3aed" }}>23</span><span className="stat-label">Days Avg Time-to-Hire</span></div>
+        <div className="stat-card"><span className="stat-value" style={{ color: "var(--psp-green)" }}>{activeVacancies}</span><span className="stat-label">Active Vacancies</span></div>
+        <div className="stat-card"><span className="stat-value" style={{ color: "var(--status-blue)" }}>{candidatesInPipeline}</span><span className="stat-label">Candidates in Pipeline</span></div>
+        <div className="stat-card"><span className="stat-value" style={{ color: "var(--status-amber)" }}>{awaitingInterview}</span><span className="stat-label">Awaiting Interview</span></div>
+        <div className="stat-card"><span className="stat-value" style={{ color: "var(--status-green)" }}>{offersThisMonth}</span><span className="stat-label">Offers Made This Month</span></div>
+        <div className="stat-card"><span className="stat-value" style={{ color: "#7c3aed" }}>{avgDaysOpen}</span><span className="stat-label">Days Avg Time-to-Hire</span></div>
       </div>
 
       {/* Visa Sponsorship Summary */}
@@ -143,19 +241,19 @@ function DashboardTab() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
           <div style={{ padding: 12, background: "#f0fdf4", borderRadius: 8, textAlign: "center" }}>
-            <div style={{ fontSize: 24, fontWeight: 700, color: "var(--status-green)" }}>52</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: "var(--status-green)" }}>{noSponsorCount}</div>
             <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>No Sponsorship Needed</div>
           </div>
           <div style={{ padding: 12, background: "#fffbeb", borderRadius: 8, textAlign: "center" }}>
-            <div style={{ fontSize: 24, fontWeight: 700, color: "var(--status-amber)" }}>18</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: "var(--status-amber)" }}>{requiresSponsorCount}</div>
             <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>Require Sponsorship</div>
           </div>
           <div style={{ padding: 12, background: "#fef2f2", borderRadius: 8, textAlign: "center" }}>
-            <div style={{ fontSize: 24, fontWeight: 700, color: "var(--status-red)" }}>3</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: "var(--status-red)" }}>{expiringCount}</div>
             <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>Visa Expiring &lt;6 Months</div>
           </div>
           <div style={{ padding: 12, background: "#eff6ff", borderRadius: 8, textAlign: "center" }}>
-            <div style={{ fontSize: 24, fontWeight: 700, color: "var(--status-blue)" }}>4</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: "var(--status-blue)" }}>{pendingRtwCount}</div>
             <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>Awaiting RTW Verification</div>
           </div>
         </div>
@@ -167,18 +265,15 @@ function DashboardTab() {
           <AlertTriangle size={18} color="var(--status-red)" /> Urgent Actions
         </h3>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {[
-            { text: "Amara Osei — Skilled Worker Visa requires council sponsorship confirmation before start date", type: "visa", council: "Manchester CC" },
-            { text: "Michael Chen — Graduate Visa expires Mar 2027 — flag to council re: sponsorship for extension", type: "visa", council: "Stockport MBC" },
-            { text: "2 DBS applications pending > 14 days — escalate to DBS helpline", type: "compliance", council: "Manchester CC" },
-            { text: "James Adeyemi — Health & Care Visa candidate — verify council holds sponsor licence", type: "visa", council: "Salford CC" },
-            { text: "Reference 2 outstanding for 3 candidates — auto-chase sent, manual follow-up needed", type: "compliance", council: "Multiple" },
-          ].map((action, i) => (
+          {urgentActions.length === 0 && (
+            <div style={{ padding: 12, background: "#f0fdf4", borderRadius: 8, fontSize: 13, color: "var(--status-green)" }}>No urgent actions at this time.</div>
+          )}
+          {urgentActions.map((action, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, background: action.type === "visa" ? "#fffbeb" : "#fef2f2", borderRadius: 8 }}>
               {action.type === "visa" ? <Plane size={16} color="var(--status-amber)" /> : <AlertCircle size={16} color="var(--status-red)" />}
               <span style={{ flex: 1, fontSize: 13 }}>{action.text}</span>
               <span className="badge badge-gray">{action.council}</span>
-              <button className="btn btn-outline btn-sm">Action</button>
+              <button className="btn btn-outline btn-sm" onClick={() => showToast(`Action noted: ${action.text.split(" — ")[0]}`, "info")}>Action</button>
             </div>
           ))}
         </div>
@@ -200,7 +295,7 @@ function DashboardTab() {
               </tr>
             </thead>
             <tbody>
-              {councils.map((c, i) => (
+              {councilOverview.map((c, i) => (
                 <tr key={i}>
                   <td style={{ fontWeight: 600 }}><Building2 size={14} style={{ display: "inline", marginRight: 6 }} />{c.name}</td>
                   <td>{c.vacancies}</td>
@@ -214,7 +309,7 @@ function DashboardTab() {
                     </div>
                   </td>
                   <td><span className={`badge ${c.status === "active" ? "badge-green" : "badge-blue"}`}>{c.status}</span></td>
-                  <td><button className="btn btn-outline btn-sm">View <ChevronRight size={14} /></button></td>
+                  <td><button className="btn btn-outline btn-sm" onClick={() => showToast(`Viewing ${c.name} details`, "info")}>View <ChevronRight size={14} /></button></td>
                 </tr>
               ))}
             </tbody>
@@ -225,14 +320,27 @@ function DashboardTab() {
   );
 }
 
-function VacanciesTab() {
+function VacanciesTab({ onCreateVacancy }: { onCreateVacancy: () => void }) {
+  const { vacancies, updateVacancy, showToast } = useData();
+  const [expandedVacancy, setExpandedVacancy] = useState<string | null>(null);
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+
+  const filtered = filterStatus === "all" ? vacancies : vacancies.filter(v => v.status === filterStatus);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h2 style={{ fontSize: 24, fontWeight: 700 }}>All Vacancies</h2>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn-outline"><Filter size={16} /> Filter</button>
-          <button className="btn btn-primary"><Plus size={16} /> Create Vacancy</button>
+          <select
+            style={{ padding: "6px 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, background: "white" }}
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+          >
+            <option value="all">All Statuses</option>
+            {vacancyStatuses.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+          </select>
+          <button className="btn btn-primary" onClick={onCreateVacancy}><Plus size={16} /> Create Vacancy</button>
         </div>
       </div>
 
@@ -252,26 +360,44 @@ function VacanciesTab() {
             </tr>
           </thead>
           <tbody>
-            {vacancies.map((v) => (
-              <tr key={v.id}>
-                <td style={{ fontWeight: 600, color: "var(--psp-green)" }}>{v.id}</td>
-                <td>{v.council}</td>
-                <td style={{ fontWeight: 500 }}>{v.role}</td>
-                <td style={{ fontSize: 13 }}>{v.salary}</td>
-                <td>
-                  <span className={`badge ${v.status === "live" ? "badge-green" : v.status === "interviewing" ? "badge-blue" : v.status === "offer" ? "badge-purple" : "badge-gray"}`}>
-                    {v.status}
-                  </span>
-                </td>
-                <td>{v.applicants}</td>
-                <td>{v.shortlisted}</td>
-                <td>
-                  <span style={{ color: v.daysOpen > 25 ? "var(--status-red)" : v.daysOpen > 14 ? "var(--status-amber)" : "var(--status-green)", fontWeight: 600 }}>
-                    {v.daysOpen}d
-                  </span>
-                </td>
-                <td><button className="btn btn-outline btn-sm">View</button></td>
-              </tr>
+            {filtered.map((v) => (
+              <>
+                <tr key={v.id}>
+                  <td style={{ fontWeight: 600, color: "var(--psp-green)" }}>{v.id}</td>
+                  <td>{v.council}</td>
+                  <td style={{ fontWeight: 500 }}>{v.role}</td>
+                  <td style={{ fontSize: 13 }}>{v.salary}</td>
+                  <td>
+                    <select
+                      className={`badge ${statusBadgeClass(v.status)}`}
+                      value={v.status}
+                      onChange={(e) => updateVacancy(v.id, { status: e.target.value as Vacancy["status"] })}
+                      style={{ cursor: "pointer", border: "none", fontSize: 12, fontWeight: 600, padding: "2px 8px", borderRadius: 999 }}
+                    >
+                      {vacancyStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </td>
+                  <td>{v.applicants}</td>
+                  <td>{v.shortlisted}</td>
+                  <td>
+                    <span style={{ color: v.daysOpen > 25 ? "var(--status-red)" : v.daysOpen > 14 ? "var(--status-amber)" : "var(--status-green)", fontWeight: 600 }}>
+                      {v.daysOpen}d
+                    </span>
+                  </td>
+                  <td>
+                    <button className="btn btn-outline btn-sm" onClick={() => setExpandedVacancy(expandedVacancy === v.id ? null : v.id)}>
+                      {expandedVacancy === v.id ? "Hide" : "View"}
+                    </button>
+                  </td>
+                </tr>
+                {expandedVacancy === v.id && (
+                  <tr key={`${v.id}-detail`}>
+                    <td colSpan={9} style={{ background: "#f8fafc", padding: 20 }}>
+                      <VacancyDetail vacancy={v} />
+                    </td>
+                  </tr>
+                )}
+              </>
             ))}
           </tbody>
         </table>
@@ -280,22 +406,103 @@ function VacanciesTab() {
   );
 }
 
-function CandidatesTab({ onSelectCandidate }: { onSelectCandidate: (c: typeof candidates[0]) => void }) {
-  const [visaFilter, setVisaFilter] = useState("all");
+function VacancyDetail({ vacancy: v }: { vacancy: Vacancy }) {
+  const { candidates, updateVacancy, deleteVacancy, showToast } = useData();
+  const assignedCandidates = candidates.filter(c => c.assignedVacancy === v.id);
 
-  const filtered = visaFilter === "all" ? candidates
-    : visaFilter === "needs_sponsorship" ? candidates.filter(c => c.rtw === "requires_sponsorship")
-    : visaFilter === "time_limited" ? candidates.filter(c => c.rtw === "time_limited")
-    : visaFilter === "clear" ? candidates.filter(c => c.visa === "british_citizen" || c.visa === "settled_status")
-    : candidates;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{v.role}</h3>
+          <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>{v.council} &middot; {v.team} &middot; {v.grade}</p>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn btn-outline btn-sm" onClick={() => deleteVacancy(v.id)}>Delete</button>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div>
+          <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Hiring Manager</p>
+          <p style={{ fontWeight: 600 }}>{v.manager}</p>
+        </div>
+        <div>
+          <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Salary</p>
+          <p style={{ fontWeight: 600 }}>{v.salary}</p>
+        </div>
+      </div>
+      {v.description && (
+        <div>
+          <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Description</p>
+          <p style={{ fontSize: 13 }}>{v.description}</p>
+        </div>
+      )}
+      {v.essential && (
+        <div>
+          <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Essential Criteria</p>
+          <p style={{ fontSize: 13 }}>{v.essential}</p>
+        </div>
+      )}
+      {v.desirable && (
+        <div>
+          <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Desirable Criteria</p>
+          <p style={{ fontSize: 13 }}>{v.desirable}</p>
+        </div>
+      )}
+      {assignedCandidates.length > 0 && (
+        <div>
+          <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 8 }}>Assigned Candidates ({assignedCandidates.length})</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {assignedCandidates.map(c => (
+              <span key={c.id} className="badge badge-blue" style={{ padding: "4px 10px" }}>
+                {c.name} &middot; {c.match}% match
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CandidatesTab({ onSelectCandidate, onAddCandidate }: { onSelectCandidate: (c: Candidate) => void; onAddCandidate: () => void }) {
+  const { candidates, showToast } = useData();
+  const [visaFilter, setVisaFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filtered = useMemo(() => {
+    let result = candidates;
+    if (visaFilter === "needs_sponsorship") result = result.filter(c => c.rtw === "requires_sponsorship");
+    else if (visaFilter === "time_limited") result = result.filter(c => c.rtw === "time_limited");
+    else if (visaFilter === "clear") result = result.filter(c => c.visa === "british_citizen" || c.visa === "settled_status");
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(c => c.name.toLowerCase().includes(term) || c.role.toLowerCase().includes(term) || c.swe.toLowerCase().includes(term) || c.location.toLowerCase().includes(term));
+    }
+    return result;
+  }, [candidates, visaFilter, searchTerm]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h2 style={{ fontSize: 24, fontWeight: 700 }}>All Candidates</h2>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn-outline"><Upload size={16} /> Upload CV</button>
-          <button className="btn btn-primary"><Plus size={16} /> Add Candidate</button>
+          <button className="btn btn-outline" onClick={() => showToast("CV upload coming soon", "info")}><Upload size={16} /> Upload CV</button>
+          <button className="btn btn-primary" onClick={onAddCandidate}><Plus size={16} /> Add Candidate</button>
+        </div>
+      </div>
+
+      {/* Search Bar */}
+      <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ position: "relative", flex: 1 }}>
+          <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-secondary)" }} />
+          <input
+            type="text"
+            placeholder="Search candidates by name, role, SWE, or location..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{ width: "100%", padding: "8px 12px 8px 36px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13 }}
+          />
         </div>
       </div>
 
@@ -327,13 +534,14 @@ function CandidatesTab({ onSelectCandidate }: { onSelectCandidate: (c: typeof ca
               <th>SWE Status</th>
               <th>Visa / Right to Work</th>
               <th>Match</th>
+              <th>Status</th>
               <th>Source</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((c, i) => (
-              <tr key={i} style={{ cursor: "pointer" }} onClick={() => onSelectCandidate(c)}>
+            {filtered.map((c) => (
+              <tr key={c.id} style={{ cursor: "pointer" }} onClick={() => onSelectCandidate(c)}>
                 <td>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--psp-green)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>
@@ -351,7 +559,7 @@ function CandidatesTab({ onSelectCandidate }: { onSelectCandidate: (c: typeof ca
                 <td>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     <VisaBadge visa={c.visa} />
-                    <RTWStatus rtw={c.rtw} visa={c.visa} />
+                    <RTWStatusBadge rtw={c.rtw} visa={c.visa} />
                   </div>
                 </td>
                 <td>
@@ -359,10 +567,14 @@ function CandidatesTab({ onSelectCandidate }: { onSelectCandidate: (c: typeof ca
                     {c.match}%
                   </span>
                 </td>
+                <td><span className={`badge ${statusBadgeClass(c.status)}`}>{c.status}</span></td>
                 <td><span className="badge badge-gray">{c.source}</span></td>
                 <td><Eye size={16} color="var(--text-secondary)" /></td>
               </tr>
             ))}
+            {filtered.length === 0 && (
+              <tr><td colSpan={9} style={{ textAlign: "center", padding: 24, color: "var(--text-secondary)" }}>No candidates match your filters.</td></tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -370,7 +582,20 @@ function CandidatesTab({ onSelectCandidate }: { onSelectCandidate: (c: typeof ca
   );
 }
 
-function CandidateDetail({ candidate: c, onBack }: { candidate: typeof candidates[0]; onBack: () => void }) {
+function CandidateDetail({ candidate: initialCandidate, onBack }: { candidate: Candidate; onBack: () => void }) {
+  const { candidates, vacancies, updateCandidate, deleteCandidate, assignCandidate, showToast } = useData();
+  // Always get the latest version of this candidate from state
+  const c = candidates.find(cand => cand.id === initialCandidate.id) || initialCandidate;
+  const assignedVacancy = c.assignedVacancy ? vacancies.find(v => v.id === c.assignedVacancy) : null;
+
+  const handleStatusChange = (newStatus: Candidate["status"]) => {
+    updateCandidate(c.id, { status: newStatus });
+  };
+
+  const handleAssign = (vacancyId: string) => {
+    assignCandidate(c.id, vacancyId);
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <button className="btn btn-outline" onClick={onBack} style={{ alignSelf: "flex-start" }}>← Back to Candidates</button>
@@ -384,17 +609,63 @@ function CandidateDetail({ candidate: c, onBack }: { candidate: typeof candidate
           <div>
             <h2 style={{ fontSize: 24, fontWeight: 700 }}>{c.name}</h2>
             <p style={{ color: "var(--text-secondary)" }}>{c.role} &middot; {c.pqe} PQE &middot; {c.location}</p>
-            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
               <span className="badge badge-green">SWE: {c.swe}</span>
               <VisaBadge visa={c.visa} />
               {c.crossCouncil && <span className="badge badge-purple"><Flag size={12} /> Applied at another council</span>}
+              <span className={`badge ${statusBadgeClass(c.status)}`}>Status: {c.status}</span>
             </div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn-outline"><Phone size={16} /> Call</button>
-          <button className="btn btn-outline"><Mail size={16} /> Email</button>
-          <button className="btn btn-primary"><Send size={16} /> Submit to Council</button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button className="btn btn-outline" onClick={() => showToast(`Calling ${c.name} at ${c.phone}...`, "info")}><Phone size={16} /> Call</button>
+          <button className="btn btn-outline" onClick={() => showToast(`Opening email to ${c.email}...`, "info")}><Mail size={16} /> Email</button>
+          <button className="btn btn-primary" onClick={() => showToast(`Submitting ${c.name} to council...`, "success")}><Send size={16} /> Submit to Council</button>
+        </div>
+      </div>
+
+      {/* Status & Assignment */}
+      <div className="card">
+        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Pipeline Status & Assignment</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div>
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Current Status</p>
+            <select
+              value={c.status}
+              onChange={(e) => handleStatusChange(e.target.value as Candidate["status"])}
+              style={{ padding: "6px 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, width: "100%" }}
+            >
+              {candidateStatuses.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+            </select>
+          </div>
+          <div>
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Assigned Vacancy</p>
+            {assignedVacancy ? (
+              <div>
+                <span className="badge badge-blue" style={{ padding: "4px 10px" }}>{assignedVacancy.id} — {assignedVacancy.role}</span>
+              </div>
+            ) : (
+              <select
+                value=""
+                onChange={(e) => { if (e.target.value) handleAssign(e.target.value); }}
+                style={{ padding: "6px 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, width: "100%" }}
+              >
+                <option value="">Assign to vacancy...</option>
+                {vacancies.filter(v => v.status === "live" || v.status === "interviewing").map(v => (
+                  <option key={v.id} value={v.id}>{v.id} — {v.role} ({v.council})</option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
+        {c.notes && (
+          <div style={{ marginTop: 16 }}>
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Notes</p>
+            <p style={{ fontSize: 13, padding: 12, background: "#f8fafc", borderRadius: 8 }}>{c.notes}</p>
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+          <button className="btn btn-outline btn-sm" style={{ color: "var(--status-red)" }} onClick={() => { deleteCandidate(c.id); onBack(); }}>Remove Candidate</button>
         </div>
       </div>
 
@@ -411,7 +682,7 @@ function CandidateDetail({ candidate: c, onBack }: { candidate: typeof candidate
           </div>
           <div>
             <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Right to Work Status</p>
-            <RTWStatus rtw={c.rtw} visa={c.visa} />
+            <RTWStatusBadge rtw={c.rtw} visa={c.visa} />
           </div>
           <div>
             <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Sponsorship Required</p>
@@ -425,11 +696,17 @@ function CandidateDetail({ candidate: c, onBack }: { candidate: typeof candidate
               )}
             </p>
           </div>
+          {c.visaExpiry && (
+            <div>
+              <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Visa Expiry Date</p>
+              <p style={{ fontWeight: 600 }}>{c.visaExpiry}</p>
+            </div>
+          )}
         </div>
 
         {(c.rtw === "requires_sponsorship" || c.rtw === "time_limited") && (
           <div style={{ marginTop: 16, padding: 12, background: "rgba(217,119,6,0.1)", borderRadius: 8, border: "1px solid rgba(217,119,6,0.3)" }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: "#92400e", marginBottom: 4 }}>⚠️ Action Required</p>
+            <p style={{ fontSize: 13, fontWeight: 600, color: "#92400e", marginBottom: 4 }}>Action Required</p>
             <ul style={{ fontSize: 12, color: "#92400e", paddingLeft: 16, display: "flex", flexDirection: "column", gap: 4 }}>
               {c.rtw === "requires_sponsorship" && (
                 <>
@@ -457,14 +734,29 @@ function CandidateDetail({ candidate: c, onBack }: { candidate: typeof candidate
         <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Compliance Checklist</h3>
         <div className="compliance-grid">
           {[
-            { label: "SWE Registration", status: c.sweStatus === "active" ? "done" : "warning", detail: c.swe },
-            { label: "Enhanced DBS", status: c.dbs === "clear" ? "done" : "pending", detail: c.dbs === "clear" ? "Clear" : "In progress" },
-            { label: "Reference 1", status: c.ref1 === "received" ? "done" : "pending", detail: c.ref1 },
-            { label: "Reference 2", status: c.ref2 === "received" ? "done" : c.ref2 === "chasing" ? "warning" : "pending", detail: c.ref2 },
-            { label: "Right to Work", status: c.rtw === "verified" ? "done" : "warning", detail: c.rtw === "verified" ? "Verified" : "Action needed" },
-            { label: "Qualifications", status: c.quals === "verified" ? "done" : "pending", detail: c.quals === "verified" ? "Verified" : "Pending" },
+            { label: "SWE Registration", field: "sweStatus" as const, status: c.sweStatus === "active" ? "done" : "warning", detail: c.swe },
+            { label: "Enhanced DBS", field: "dbs" as const, status: c.dbs === "done" ? "done" : c.dbs === "warning" ? "warning" : "pending", detail: c.dbs === "done" ? "Clear" : c.dbs === "warning" ? "Issue" : "In progress" },
+            { label: "Reference 1", field: "ref1" as const, status: c.ref1 === "done" ? "done" : c.ref1 === "warning" ? "warning" : "pending", detail: c.ref1 === "done" ? "Received" : c.ref1 === "warning" ? "Chasing" : "Pending" },
+            { label: "Reference 2", field: "ref2" as const, status: c.ref2 === "done" ? "done" : c.ref2 === "warning" ? "warning" : "pending", detail: c.ref2 === "done" ? "Received" : c.ref2 === "warning" ? "Chasing" : "Pending" },
+            { label: "Right to Work", field: "rtw" as const, status: c.rtw === "verified" ? "done" : "warning", detail: c.rtw === "verified" ? "Verified" : "Action needed" },
+            { label: "Qualifications", field: "quals" as const, status: c.quals === "done" ? "done" : c.quals === "warning" ? "warning" : "pending", detail: c.quals === "done" ? "Verified" : c.quals === "warning" ? "Issue" : "Pending" },
           ].map((item, i) => (
-            <div key={i} className="compliance-item" style={{ borderColor: item.status === "done" ? "#86efac" : item.status === "warning" ? "#fcd34d" : "#e2e8f0" }}>
+            <div
+              key={i}
+              className="compliance-item"
+              style={{ borderColor: item.status === "done" ? "#86efac" : item.status === "warning" ? "#fcd34d" : "#e2e8f0", cursor: "pointer" }}
+              onClick={() => {
+                if (item.field === "sweStatus") return;
+                const currentVal = c[item.field];
+                const compCycle: Record<string, CompStatus> = { pending: "done", done: "warning", warning: "pending", na: "pending" };
+                const rtwCycle: Record<string, RTWStatusType> = { pending: "verified", verified: "requires_sponsorship", requires_sponsorship: "time_limited", time_limited: "expired", expired: "pending" };
+                if (item.field === "rtw") {
+                  updateCandidate(c.id, { rtw: rtwCycle[currentVal as string] || "pending" });
+                } else {
+                  updateCandidate(c.id, { [item.field]: compCycle[currentVal as string] || "pending" });
+                }
+              }}
+            >
               {item.status === "done" ? <CheckCircle2 size={18} color="var(--status-green)" /> : item.status === "warning" ? <AlertTriangle size={18} color="var(--status-amber)" /> : <Clock size={18} color="var(--text-secondary)" />}
               <div>
                 <div style={{ fontWeight: 600 }}>{item.label}</div>
@@ -473,6 +765,7 @@ function CandidateDetail({ candidate: c, onBack }: { candidate: typeof candidate
             </div>
           ))}
         </div>
+        <p style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 8 }}>Click a compliance item to cycle its status.</p>
       </div>
 
       {/* GDPR Notice */}
@@ -489,6 +782,23 @@ function CandidateDetail({ candidate: c, onBack }: { candidate: typeof candidate
 }
 
 function ComplianceTab() {
+  const { candidates, vacancies, updateCandidate, showToast } = useData();
+
+  // Find candidates who need visa/sponsorship tracking
+  const visaCandidates = useMemo(() => {
+    return candidates.filter(c =>
+      c.visa === "skilled_worker" || c.visa === "health_care_visa" || c.visa === "graduate_visa" || c.visa === "spouse_visa"
+    ).map(c => {
+      const vac = c.assignedVacancy ? vacancies.find(v => v.id === c.assignedVacancy) : null;
+      const council = vac ? vac.council : "Unassigned";
+      const visaLabel = c.visa === "skilled_worker" ? "Skilled Worker" : c.visa === "health_care_visa" ? "Health & Care Worker" : c.visa === "graduate_visa" ? "Graduate" : c.visa === "spouse_visa" ? "Spouse" : c.visa;
+      const sponsorship = c.rtw === "requires_sponsorship" ? "Required" : c.rtw === "time_limited" ? "Future" : "No";
+      const licence = c.rtw === "requires_sponsorship" ? "Checking" : "N/A";
+      const action = c.rtw === "requires_sponsorship" ? "Request CoS" : c.rtw === "time_limited" ? "Set reminder" : "None";
+      return { id: c.id, name: c.name, visa: c.visa, visaLabel, expiry: c.visaExpiry, sponsorship, council, licence, action };
+    });
+  }, [candidates, vacancies]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <h2 style={{ fontSize: 24, fontWeight: 700 }}>Compliance Hub</h2>
@@ -513,16 +823,13 @@ function ComplianceTab() {
               </tr>
             </thead>
             <tbody>
-              {[
-                { name: "Amara Osei", visa: "Skilled Worker", expiry: "15/08/2027", sponsorship: "Required", council: "Manchester CC", licence: "Yes", action: "Request CoS" },
-                { name: "Michael Chen", visa: "Graduate", expiry: "01/03/2027", sponsorship: "Future", council: "Stockport MBC", licence: "Yes", action: "Set reminder" },
-                { name: "James Adeyemi", visa: "Health & Care Worker", expiry: "30/06/2028", sponsorship: "Required", council: "Salford CC", licence: "Checking", action: "Verify licence" },
-                { name: "Fatima Al-Hassan", visa: "Spouse", expiry: "22/11/2026", sponsorship: "No", council: "Manchester CC", licence: "N/A", action: "None" },
-              ].map((r, i) => (
-                <tr key={i}>
+              {visaCandidates.map((r) => (
+                <tr key={r.id}>
                   <td style={{ fontWeight: 600 }}>{r.name}</td>
-                  <td><VisaBadge visa={r.visa.toLowerCase().replace(/ & /g, "_").replace(/ /g, "_")} /></td>
-                  <td style={{ fontWeight: 600, color: new Date(r.expiry.split("/").reverse().join("-")) < new Date("2027-06-01") ? "var(--status-amber)" : "inherit" }}>{r.expiry}</td>
+                  <td><VisaBadge visa={r.visa} /></td>
+                  <td style={{ fontWeight: 600, color: r.expiry && new Date(r.expiry) < new Date("2027-06-01") ? "var(--status-amber)" : "inherit" }}>
+                    {r.expiry || "N/A"}
+                  </td>
                   <td>
                     <span className={`badge ${r.sponsorship === "Required" ? "badge-amber" : r.sponsorship === "Future" ? "badge-blue" : "badge-green"}`}>
                       {r.sponsorship}
@@ -534,9 +841,12 @@ function ComplianceTab() {
                       {r.licence}
                     </span>
                   </td>
-                  <td><button className="btn btn-outline btn-sm">{r.action}</button></td>
+                  <td><button className="btn btn-outline btn-sm" onClick={() => showToast(`${r.action} for ${r.name}`, "info")}>{r.action}</button></td>
                 </tr>
               ))}
+              {visaCandidates.length === 0 && (
+                <tr><td colSpan={7} style={{ textAlign: "center", padding: 24, color: "var(--text-secondary)" }}>No candidates requiring visa tracking.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -560,21 +870,21 @@ function ComplianceTab() {
               </tr>
             </thead>
             <tbody>
-              {candidates.map((c, i) => {
-                const checks = [c.sweStatus === "active", c.dbs === "clear", c.ref1 === "received", c.ref2 === "received", c.rtw === "verified", c.quals === "verified"];
+              {candidates.map((c) => {
+                const checks = [c.sweStatus === "active", c.dbs === "done", c.ref1 === "done", c.ref2 === "done", c.rtw === "verified", c.quals === "done"];
                 const pct = Math.round((checks.filter(Boolean).length / checks.length) * 100);
                 return (
-                  <tr key={i}>
+                  <tr key={c.id}>
                     <td style={{ fontWeight: 600 }}>{c.name}</td>
                     <td>{c.sweStatus === "active" ? <CheckCircle2 size={16} color="var(--status-green)" /> : <AlertTriangle size={16} color="var(--status-amber)" />}</td>
-                    <td>{c.dbs === "clear" ? <CheckCircle2 size={16} color="var(--status-green)" /> : <Clock size={16} color="var(--text-secondary)" />}</td>
-                    <td>{c.ref1 === "received" ? <CheckCircle2 size={16} color="var(--status-green)" /> : <Clock size={16} color="var(--text-secondary)" />}</td>
-                    <td>{c.ref2 === "received" ? <CheckCircle2 size={16} color="var(--status-green)" /> : c.ref2 === "chasing" ? <AlertTriangle size={16} color="var(--status-amber)" /> : <Clock size={16} color="var(--text-secondary)" />}</td>
+                    <td>{c.dbs === "done" ? <CheckCircle2 size={16} color="var(--status-green)" /> : <Clock size={16} color="var(--text-secondary)" />}</td>
+                    <td>{c.ref1 === "done" ? <CheckCircle2 size={16} color="var(--status-green)" /> : <Clock size={16} color="var(--text-secondary)" />}</td>
+                    <td>{c.ref2 === "done" ? <CheckCircle2 size={16} color="var(--status-green)" /> : c.ref2 === "warning" ? <AlertTriangle size={16} color="var(--status-amber)" /> : <Clock size={16} color="var(--text-secondary)" />}</td>
                     <td>
                       {c.rtw === "verified" ? <CheckCircle2 size={16} color="var(--status-green)" /> : <AlertTriangle size={16} color="var(--status-amber)" />}
                       {c.rtw === "requires_sponsorship" && <span style={{ fontSize: 10, color: "var(--status-amber)", display: "block" }}>Sponsor</span>}
                     </td>
-                    <td>{c.quals === "verified" ? <CheckCircle2 size={16} color="var(--status-green)" /> : <Clock size={16} color="var(--text-secondary)" />}</td>
+                    <td>{c.quals === "done" ? <CheckCircle2 size={16} color="var(--status-green)" /> : <Clock size={16} color="var(--text-secondary)" />}</td>
                     <td>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <div className="progress-bar" style={{ width: 60 }}>
@@ -595,6 +905,7 @@ function ComplianceTab() {
 }
 
 function RetentionTab() {
+  const { showToast } = useData();
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <h2 style={{ fontSize: 24, fontWeight: 700 }}>Retention Tracking</h2>
@@ -626,8 +937,24 @@ function RetentionTab() {
                   <td>{p.role}</td>
                   <td>{p.start}</td>
                   <td style={{ fontWeight: 500 }}>{p.nextCheckin}</td>
-                  <td><span className={`badge ${p.m1Status === "paid" ? "badge-green" : p.m1Status === "pending" ? "badge-amber" : "badge-gray"}`}>{p.m1} — {p.m1Status}</span></td>
-                  <td><span className={`badge ${p.m2Status === "paid" ? "badge-green" : p.m2Status === "pending" ? "badge-amber" : "badge-gray"}`}>{p.m2} — {p.m2Status}</span></td>
+                  <td>
+                    <span
+                      className={`badge ${p.m1Status === "paid" ? "badge-green" : p.m1Status === "pending" ? "badge-amber" : "badge-gray"}`}
+                      style={{ cursor: "pointer" }}
+                      onClick={() => showToast(`Milestone 1 for ${p.name}: ${p.m1} (${p.m1Status})`, "info")}
+                    >
+                      {p.m1} — {p.m1Status}
+                    </span>
+                  </td>
+                  <td>
+                    <span
+                      className={`badge ${p.m2Status === "paid" ? "badge-green" : p.m2Status === "pending" ? "badge-amber" : "badge-gray"}`}
+                      style={{ cursor: "pointer" }}
+                      onClick={() => showToast(`Milestone 2 for ${p.name}: ${p.m2} (${p.m2Status})`, "info")}
+                    >
+                      {p.m2} — {p.m2Status}
+                    </span>
+                  </td>
                   <td><span className={`badge ${p.status === "on-track" ? "badge-green" : "badge-amber"}`}>{p.status}</span></td>
                 </tr>
               ))}
@@ -640,6 +967,7 @@ function RetentionTab() {
 }
 
 function SettingsTab() {
+  const { showToast } = useData();
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <h2 style={{ fontSize: 24, fontWeight: 700 }}>Platform Settings</h2>
@@ -662,7 +990,7 @@ function SettingsTab() {
                   <td>{c.sso}</td>
                   <td style={{ fontWeight: 600 }}>{c.fee}</td>
                   <td>{c.end}</td>
-                  <td><button className="btn btn-outline btn-sm">Manage</button></td>
+                  <td><button className="btn btn-outline btn-sm" onClick={() => showToast(`Managing ${c.name}...`, "info")}>Manage</button></td>
                 </tr>
               ))}
             </tbody>
@@ -679,11 +1007,11 @@ function SettingsTab() {
           </div>
           <div style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div><strong>Emergency Access</strong><br /><span style={{ fontSize: 12, color: "var(--text-secondary)" }}>Temporary email + MFA login when SSO is unavailable. 24hr, fully audited.</span></div>
-            <button className="btn btn-outline btn-sm">Configure</button>
+            <button className="btn btn-outline btn-sm" onClick={() => showToast("Emergency access configuration coming soon", "info")}>Configure</button>
           </div>
           <div style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div><strong>Data Retention Policy</strong><br /><span style={{ fontSize: 12, color: "var(--text-secondary)" }}>6 months post-decision. 12-month re-consent for talent pool.</span></div>
-            <button className="btn btn-outline btn-sm">Review</button>
+            <button className="btn btn-outline btn-sm" onClick={() => showToast("Data retention policy review opened", "info")}>Review</button>
           </div>
         </div>
       </div>

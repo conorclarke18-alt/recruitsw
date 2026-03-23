@@ -1,26 +1,44 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Building2, BarChart3, Users, Briefcase, FileCheck, Calendar,
   ChevronRight, Search, Filter, Plus, Eye, CheckCircle2, XCircle,
   AlertTriangle, AlertCircle, Clock, Star, Send, Phone, Mail,
-  Shield, Plane, Flag, UserCheck, FileText, Download
+  Shield, Plane, Flag, UserCheck, FileText, Download, ChevronDown, ChevronUp, X
 } from "lucide-react";
+import { useData, Vacancy, Candidate } from "./DataStore";
 
-const vacancies = [
-  { id: "MCC-2024-001", role: "Senior Social Worker — Children in Need", team: "Children's Services", manager: "James Okafor", salary: "£42,708 - £46,731", status: "live", applicants: 8, shortlisted: 3, daysOpen: 12, slaStatus: "green" },
-  { id: "MCC-2024-002", role: "Team Manager — Safeguarding", team: "Safeguarding Hub", manager: "Rachel Adams", salary: "£52,805 - £56,024", status: "live", applicants: 4, shortlisted: 1, daysOpen: 21, slaStatus: "amber" },
-  { id: "MCC-2024-003", role: "ASYE Social Worker", team: "Referral & Assessment", manager: "James Okafor", salary: "£33,945 - £37,336", status: "live", applicants: 14, shortlisted: 5, daysOpen: 7, slaStatus: "green" },
-  { id: "MCC-2024-004", role: "Social Worker — MASH", team: "Multi-Agency Hub", manager: "Linda Chowdhury", salary: "£37,336 - £40,476", status: "offer", applicants: 11, shortlisted: 4, daysOpen: 35, slaStatus: "red" },
-];
+// Helpers
+function visaLabel(visa: Candidate["visa"]): string {
+  const map: Record<string, string> = {
+    british_citizen: "British Citizen",
+    settled_status: "EU Settled Status",
+    skilled_worker: "Skilled Worker Visa",
+    graduate_visa: "Graduate Visa",
+    spouse_visa: "Spouse Visa",
+    health_care_visa: "Health & Care Visa",
+    pre_settled: "Pre-Settled Status",
+    other: "Other",
+  };
+  return map[visa] || visa;
+}
 
-const shortlistedCandidates = [
-  { name: "Sarah Mitchell", role: "Senior Social Worker", pqe: "6 years", match: 94, swe: "Active", visa: "british_citizen", visaLabel: "British Citizen", rtw: "verified", rtwLabel: "✅ Verified", source: "PSP Network", crossCouncil: false },
-  { name: "Priya Sharma", role: "Senior Social Worker", pqe: "8 years", match: 91, swe: "Active", visa: "british_citizen", visaLabel: "British Citizen", rtw: "verified", rtwLabel: "✅ Verified", source: "PSP WhatsApp", crossCouncil: true },
-  { name: "Amara Osei", role: "Social Worker", pqe: "3 years", match: 87, swe: "Active", visa: "skilled_worker", visaLabel: "Skilled Worker Visa", rtw: "requires_sponsorship", rtwLabel: "⚠️ Needs Sponsorship", source: "Agency", crossCouncil: false },
-  { name: "David Williams", role: "Team Manager", pqe: "11 years", match: 89, swe: "Active", visa: "settled_status", visaLabel: "EU Settled Status", rtw: "verified", rtwLabel: "✅ Verified", source: "Direct", crossCouncil: true },
-  { name: "Michael Chen", role: "ASYE Social Worker", pqe: "NQ", match: 82, swe: "Active", visa: "graduate_visa", visaLabel: "Graduate Visa", rtw: "time_limited", rtwLabel: "⏳ Time-Limited", source: "PSP Network", crossCouncil: false },
-];
+function rtwLabel(rtw: Candidate["rtw"]): string {
+  const map: Record<string, string> = {
+    verified: "✅ Verified",
+    requires_sponsorship: "⚠️ Needs Sponsorship",
+    time_limited: "⏳ Time-Limited",
+    pending: "⏳ Pending",
+    expired: "❌ Expired",
+  };
+  return map[rtw] || rtw;
+}
+
+function slaStatus(daysOpen: number): "green" | "amber" | "red" {
+  if (daysOpen > 25) return "red";
+  if (daysOpen > 14) return "amber";
+  return "green";
+}
 
 export default function CouncilView() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -69,38 +87,63 @@ export default function CouncilView() {
   );
 }
 
+/* ─── DASHBOARD ─── */
 function CouncilDashboard() {
+  const { vacancies, candidates, showToast } = useData();
+
+  const mccVacancies = useMemo(() => vacancies.filter((v) => v.council === "Manchester CC"), [vacancies]);
+  const mccVacancyIds = useMemo(() => new Set(mccVacancies.map((v) => v.id)), [mccVacancies]);
+  const mccCandidates = useMemo(() => candidates.filter((c) => c.assignedVacancy && mccVacancyIds.has(c.assignedVacancy)), [candidates, mccVacancyIds]);
+
+  const activeVacancies = mccVacancies.filter((v) => v.status === "live" || v.status === "interviewing").length;
+  const pipelineCount = mccCandidates.length;
+  const awaitingDecision = mccCandidates.filter((c) => c.status === "shortlisted").length;
+  const offersPending = mccVacancies.filter((v) => v.status === "offer").length;
+  const avgDaysOpen = mccVacancies.length > 0 ? Math.round(mccVacancies.reduce((s, v) => s + v.daysOpen, 0) / mccVacancies.length) : 0;
+
+  // Sponsorship alerts from real candidates
+  const sponsorshipCandidates = mccCandidates.filter((c) => c.rtw === "requires_sponsorship");
+  const timeLimitedCandidates = mccCandidates.filter((c) => c.rtw === "time_limited");
+
+  const [expandedVacancy, setExpandedVacancy] = useState<string | null>(null);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <h2 style={{ fontSize: 24, fontWeight: 700 }}>Recruitment Dashboard — Manchester City Council</h2>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
-        <div className="stat-card"><span className="stat-value" style={{ color: "var(--council-blue)" }}>12</span><span className="stat-label">Active Vacancies</span></div>
-        <div className="stat-card"><span className="stat-value" style={{ color: "var(--status-green)" }}>34</span><span className="stat-label">Candidates in Pipeline</span></div>
-        <div className="stat-card"><span className="stat-value" style={{ color: "var(--status-amber)" }}>3</span><span className="stat-label">Awaiting Shortlist Decision</span></div>
-        <div className="stat-card"><span className="stat-value" style={{ color: "#7c3aed" }}>2</span><span className="stat-label">Offers Pending</span></div>
-        <div className="stat-card"><span className="stat-value" style={{ color: "var(--status-green)" }}>19d</span><span className="stat-label">Avg Time-to-Hire</span></div>
+        <div className="stat-card"><span className="stat-value" style={{ color: "var(--council-blue)" }}>{activeVacancies}</span><span className="stat-label">Active Vacancies</span></div>
+        <div className="stat-card"><span className="stat-value" style={{ color: "var(--status-green)" }}>{pipelineCount}</span><span className="stat-label">Candidates in Pipeline</span></div>
+        <div className="stat-card"><span className="stat-value" style={{ color: "var(--status-amber)" }}>{awaitingDecision}</span><span className="stat-label">Awaiting Shortlist Decision</span></div>
+        <div className="stat-card"><span className="stat-value" style={{ color: "#7c3aed" }}>{offersPending}</span><span className="stat-label">Offers Pending</span></div>
+        <div className="stat-card"><span className="stat-value" style={{ color: "var(--status-green)" }}>{avgDaysOpen}d</span><span className="stat-label">Avg Time-to-Hire</span></div>
       </div>
 
       {/* Visa Alert */}
-      <div className="card" style={{ borderLeft: "4px solid var(--status-amber)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <Plane size={18} color="var(--status-amber)" />
-          <h3 style={{ fontSize: 15, fontWeight: 700 }}>Sponsorship Attention Required</h3>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 10, background: "#fffbeb", borderRadius: 8, fontSize: 13 }}>
-            <AlertTriangle size={16} color="var(--status-amber)" />
-            <span><strong>Amara Osei</strong> — Skilled Worker Visa candidate. Your council must hold a valid Sponsor Licence and issue a CoS before start date.</span>
-            <button className="btn btn-outline btn-sm" style={{ marginLeft: "auto" }}>Review</button>
+      {(sponsorshipCandidates.length > 0 || timeLimitedCandidates.length > 0) && (
+        <div className="card" style={{ borderLeft: "4px solid var(--status-amber)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <Plane size={18} color="var(--status-amber)" />
+            <h3 style={{ fontSize: 15, fontWeight: 700 }}>Sponsorship Attention Required</h3>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 10, background: "#eff6ff", borderRadius: 8, fontSize: 13 }}>
-            <Clock size={16} color="var(--status-blue)" />
-            <span><strong>Michael Chen</strong> — Graduate Visa expires March 2027. If you wish to retain, sponsorship will be needed for extension.</span>
-            <button className="btn btn-outline btn-sm" style={{ marginLeft: "auto" }}>Note</button>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {sponsorshipCandidates.map((c) => (
+              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: 10, background: "#fffbeb", borderRadius: 8, fontSize: 13 }}>
+                <AlertTriangle size={16} color="var(--status-amber)" />
+                <span><strong>{c.name}</strong> — {visaLabel(c.visa)} candidate. Your council must hold a valid Sponsor Licence and issue a CoS before start date.</span>
+                <button className="btn btn-outline btn-sm" style={{ marginLeft: "auto" }} onClick={() => showToast(`Sponsorship review noted for ${c.name}`, "info")}>Review</button>
+              </div>
+            ))}
+            {timeLimitedCandidates.map((c) => (
+              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: 10, background: "#eff6ff", borderRadius: 8, fontSize: 13 }}>
+                <Clock size={16} color="var(--status-blue)" />
+                <span><strong>{c.name}</strong> — {visaLabel(c.visa)} expires {c.visaExpiry || "TBC"}. If you wish to retain, sponsorship will be needed for extension.</span>
+                <button className="btn btn-outline btn-sm" style={{ marginLeft: "auto" }} onClick={() => showToast(`Noted: ${c.name} visa monitoring flagged`, "info")}>Note</button>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      )}
 
       {/* Pipeline */}
       <div className="card">
@@ -109,18 +152,31 @@ function CouncilDashboard() {
           <table>
             <thead><tr><th>Vacancy</th><th>Team</th><th>Hiring Manager</th><th>Status</th><th>Candidates</th><th>Days Open</th><th>SLA</th><th></th></tr></thead>
             <tbody>
-              {vacancies.map((v) => (
-                <tr key={v.id}>
-                  <td><div><span style={{ fontWeight: 600 }}>{v.role}</span><br /><span style={{ fontSize: 11, color: "var(--text-secondary)" }}>{v.id}</span></div></td>
-                  <td>{v.team}</td>
-                  <td>{v.manager}</td>
-                  <td><span className={`badge ${v.status === "live" ? "badge-green" : v.status === "offer" ? "badge-purple" : "badge-blue"}`}>{v.status}</span></td>
-                  <td>{v.applicants} applied / {v.shortlisted} shortlisted</td>
-                  <td style={{ fontWeight: 600, color: v.daysOpen > 25 ? "var(--status-red)" : v.daysOpen > 14 ? "var(--status-amber)" : "var(--status-green)" }}>{v.daysOpen}d</td>
-                  <td><span className={`badge ${v.slaStatus === "green" ? "badge-green" : v.slaStatus === "amber" ? "badge-amber" : "badge-red"}`}>{v.slaStatus === "green" ? "On Track" : v.slaStatus === "amber" ? "At Risk" : "Overdue"}</span></td>
-                  <td><button className="btn btn-outline btn-sm">View</button></td>
-                </tr>
-              ))}
+              {mccVacancies.map((v) => {
+                const sla = slaStatus(v.daysOpen);
+                const isExpanded = expandedVacancy === v.id;
+                return (
+                  <>
+                    <tr key={v.id}>
+                      <td><div><span style={{ fontWeight: 600 }}>{v.role}</span><br /><span style={{ fontSize: 11, color: "var(--text-secondary)" }}>{v.id}</span></div></td>
+                      <td>{v.team}</td>
+                      <td>{v.manager}</td>
+                      <td><span className={`badge ${v.status === "live" ? "badge-green" : v.status === "offer" ? "badge-purple" : v.status === "interviewing" ? "badge-blue" : "badge-amber"}`}>{v.status}</span></td>
+                      <td>{v.applicants} applied / {v.shortlisted} shortlisted</td>
+                      <td style={{ fontWeight: 600, color: v.daysOpen > 25 ? "var(--status-red)" : v.daysOpen > 14 ? "var(--status-amber)" : "var(--status-green)" }}>{v.daysOpen}d</td>
+                      <td><span className={`badge ${sla === "green" ? "badge-green" : sla === "amber" ? "badge-amber" : "badge-red"}`}>{sla === "green" ? "On Track" : sla === "amber" ? "At Risk" : "Overdue"}</span></td>
+                      <td><button className="btn btn-outline btn-sm" onClick={() => setExpandedVacancy(isExpanded ? null : v.id)}>{isExpanded ? "Hide" : "View"}</button></td>
+                    </tr>
+                    {isExpanded && (
+                      <tr key={`${v.id}-detail`}>
+                        <td colSpan={8} style={{ background: "#f8fafc", padding: 16 }}>
+                          <VacancyDetail vacancy={v} />
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -137,29 +193,91 @@ function CouncilDashboard() {
   );
 }
 
+/* ─── VACANCY INLINE DETAIL ─── */
+function VacancyDetail({ vacancy }: { vacancy: Vacancy }) {
+  const { candidates } = useData();
+  const assignedCandidates = candidates.filter((c) => c.assignedVacancy === vacancy.id);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div>
+          <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>Grade</div>
+          <div style={{ fontWeight: 600 }}>{vacancy.grade}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>Salary</div>
+          <div style={{ fontWeight: 600 }}>{vacancy.salary}</div>
+        </div>
+      </div>
+      <div>
+        <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>Description</div>
+        <div style={{ fontSize: 13 }}>{vacancy.description}</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div>
+          <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>Essential Criteria</div>
+          <div style={{ fontSize: 13 }}>{vacancy.essential}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>Desirable Criteria</div>
+          <div style={{ fontSize: 13 }}>{vacancy.desirable}</div>
+        </div>
+      </div>
+      {assignedCandidates.length > 0 && (
+        <div>
+          <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>Assigned Candidates ({assignedCandidates.length})</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {assignedCandidates.map((c) => (
+              <span key={c.id} className="badge badge-blue">{c.name} — {c.status}</span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── VACANCIES TAB ─── */
 function CouncilVacancies() {
+  const { vacancies, showToast } = useData();
+  const mccVacancies = useMemo(() => vacancies.filter((v) => v.council === "Manchester CC"), [vacancies]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h2 style={{ fontSize: 24, fontWeight: 700 }}>Our Vacancies</h2>
-        <button className="btn btn-council"><Plus size={16} /> Request New Vacancy</button>
+        <button className="btn btn-council" onClick={() => showToast("Vacancy request sent to PSP", "success")}><Plus size={16} /> Request New Vacancy</button>
       </div>
       <div className="table-container">
         <table>
           <thead><tr><th>Reference</th><th>Role</th><th>Team</th><th>Salary</th><th>Status</th><th>Applicants</th><th>Days Open</th><th></th></tr></thead>
           <tbody>
-            {vacancies.map((v) => (
-              <tr key={v.id}>
-                <td style={{ fontWeight: 600, color: "var(--council-blue)" }}>{v.id}</td>
-                <td style={{ fontWeight: 500 }}>{v.role}</td>
-                <td>{v.team}</td>
-                <td style={{ fontSize: 13 }}>{v.salary}</td>
-                <td><span className={`badge ${v.status === "live" ? "badge-green" : v.status === "offer" ? "badge-purple" : "badge-blue"}`}>{v.status}</span></td>
-                <td>{v.applicants}</td>
-                <td style={{ fontWeight: 600 }}>{v.daysOpen}d</td>
-                <td><button className="btn btn-outline btn-sm">View</button></td>
-              </tr>
-            ))}
+            {mccVacancies.map((v) => {
+              const isExpanded = expandedId === v.id;
+              return (
+                <>
+                  <tr key={v.id}>
+                    <td style={{ fontWeight: 600, color: "var(--council-blue)" }}>{v.id}</td>
+                    <td style={{ fontWeight: 500 }}>{v.role}</td>
+                    <td>{v.team}</td>
+                    <td style={{ fontSize: 13 }}>{v.salary}</td>
+                    <td><span className={`badge ${v.status === "live" ? "badge-green" : v.status === "offer" ? "badge-purple" : v.status === "interviewing" ? "badge-blue" : "badge-amber"}`}>{v.status}</span></td>
+                    <td>{v.applicants}</td>
+                    <td style={{ fontWeight: 600 }}>{v.daysOpen}d</td>
+                    <td><button className="btn btn-outline btn-sm" onClick={() => setExpandedId(isExpanded ? null : v.id)}>{isExpanded ? "Hide" : "View"}</button></td>
+                  </tr>
+                  {isExpanded && (
+                    <tr key={`${v.id}-detail`}>
+                      <td colSpan={8} style={{ background: "#f8fafc", padding: 16 }}>
+                        <VacancyDetail vacancy={v} />
+                      </td>
+                    </tr>
+                  )}
+                </>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -167,40 +285,98 @@ function CouncilVacancies() {
   );
 }
 
+/* ─── CANDIDATE PROFILE DETAIL ─── */
+function CandidateProfile({ candidate, onClose }: { candidate: Candidate; onClose: () => void }) {
+  return (
+    <div style={{ padding: 16, background: "#f8fafc", border: "1px solid var(--border)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h4 style={{ fontSize: 16, fontWeight: 700 }}>{candidate.name} — Full Profile</h4>
+        <button className="btn btn-outline btn-sm" onClick={onClose}><X size={14} /> Close</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, fontSize: 13 }}>
+        <div><span style={{ color: "var(--text-secondary)" }}>Email:</span> {candidate.email}</div>
+        <div><span style={{ color: "var(--text-secondary)" }}>Phone:</span> {candidate.phone}</div>
+        <div><span style={{ color: "var(--text-secondary)" }}>Location:</span> {candidate.location}</div>
+        <div><span style={{ color: "var(--text-secondary)" }}>Role:</span> {candidate.role}</div>
+        <div><span style={{ color: "var(--text-secondary)" }}>PQE:</span> {candidate.pqe}</div>
+        <div><span style={{ color: "var(--text-secondary)" }}>SWE Reg:</span> {candidate.swe} ({candidate.sweStatus})</div>
+        <div><span style={{ color: "var(--text-secondary)" }}>Source:</span> {candidate.source}</div>
+        <div><span style={{ color: "var(--text-secondary)" }}>Available:</span> {candidate.available}</div>
+        <div><span style={{ color: "var(--text-secondary)" }}>Status:</span> {candidate.status}</div>
+      </div>
+      <div style={{ fontSize: 13 }}>
+        <span style={{ color: "var(--text-secondary)" }}>Visa:</span> {candidate.visaDetails}
+      </div>
+      {candidate.notes && (
+        <div style={{ fontSize: 13 }}>
+          <span style={{ color: "var(--text-secondary)" }}>Notes:</span> {candidate.notes}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", fontSize: 13 }}>
+        <span style={{ color: "var(--text-secondary)" }}>Compliance:</span>
+        <span className={`badge ${candidate.dbs === "done" ? "badge-green" : "badge-amber"}`}>DBS: {candidate.dbs}</span>
+        <span className={`badge ${candidate.ref1 === "done" ? "badge-green" : "badge-amber"}`}>Ref 1: {candidate.ref1}</span>
+        <span className={`badge ${candidate.ref2 === "done" ? "badge-green" : "badge-amber"}`}>Ref 2: {candidate.ref2}</span>
+        <span className={`badge ${candidate.quals === "done" ? "badge-green" : "badge-amber"}`}>Quals: {candidate.quals}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ─── CANDIDATES TAB ─── */
 function CouncilCandidates() {
+  const { vacancies, candidates, updateCandidate, showToast } = useData();
+  const mccVacancyIds = useMemo(() => new Set(vacancies.filter((v) => v.council === "Manchester CC").map((v) => v.id)), [vacancies]);
+  const mccCandidates = useMemo(() => candidates.filter((c) => c.assignedVacancy && mccVacancyIds.has(c.assignedVacancy)), [candidates, mccVacancyIds]);
+
+  const [expandedProfile, setExpandedProfile] = useState<string | null>(null);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <h2 style={{ fontSize: 24, fontWeight: 700 }}>Shortlisted Candidates</h2>
       <p style={{ color: "var(--text-secondary)" }}>These candidates have been screened and shortlisted by PSP for your vacancies.</p>
 
+      {mccCandidates.length === 0 && (
+        <div className="card" style={{ textAlign: "center", padding: 40, color: "var(--text-secondary)" }}>No candidates currently assigned to Manchester CC vacancies.</div>
+      )}
+
       <div style={{ display: "grid", gap: 16 }}>
-        {shortlistedCandidates.map((c, i) => (
-          <div key={i} className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {mccCandidates.map((c) => (
+          <div key={c.id} className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
               <div style={{ display: "flex", gap: 12 }}>
                 <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--council-blue)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>
-                  {c.name.split(" ").map(n => n[0]).join("")}
+                  {c.name.split(" ").map((n) => n[0]).join("")}
                 </div>
                 <div>
                   <h3 style={{ fontSize: 18, fontWeight: 700 }}>{c.name}</h3>
-                  <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>{c.role} &middot; {c.pqe} PQE &middot; SWE: {c.swe}</p>
+                  <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>{c.role} &middot; {c.pqe} PQE &middot; SWE: {c.sweStatus === "active" ? "Active" : c.sweStatus}</p>
                   <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
                     <span className={`badge ${c.match >= 90 ? "badge-green" : c.match >= 80 ? "badge-blue" : "badge-amber"}`}>Match: {c.match}%</span>
                     <span className={`badge ${c.visa === "british_citizen" || c.visa === "settled_status" ? "badge-green" : "badge-amber"}`}>
-                      {c.visaLabel}
+                      {visaLabel(c.visa)}
                     </span>
                     <span className={`badge ${c.rtw === "verified" ? "badge-green" : "badge-amber"}`}>
-                      {c.rtwLabel}
+                      {rtwLabel(c.rtw)}
                     </span>
                     {c.crossCouncil && <span className="badge badge-purple">Previously applied at another council</span>}
+                    <span className={`badge ${c.status === "interviewing" ? "badge-blue" : c.status === "shortlisted" ? "badge-green" : "badge-amber"}`}>
+                      {c.status}
+                    </span>
                   </div>
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn btn-outline btn-sm"><Eye size={14} /> View Profile</button>
-                <button className="btn btn-council btn-sm"><CheckCircle2 size={14} /> Approve for Interview</button>
+                <button className="btn btn-outline btn-sm" onClick={() => setExpandedProfile(expandedProfile === c.id ? null : c.id)}><Eye size={14} /> {expandedProfile === c.id ? "Hide Profile" : "View Profile"}</button>
+                {c.status !== "interviewing" && c.status !== "offered" && c.status !== "hired" && (
+                  <button className="btn btn-council btn-sm" onClick={() => updateCandidate(c.id, { status: "interviewing" })}><CheckCircle2 size={14} /> Approve for Interview</button>
+                )}
               </div>
             </div>
+
+            {expandedProfile === c.id && (
+              <CandidateProfile candidate={c} onClose={() => setExpandedProfile(null)} />
+            )}
 
             {/* Sponsorship Warning */}
             {c.rtw === "requires_sponsorship" && (
@@ -215,7 +391,7 @@ function CouncilCandidates() {
               <div style={{ padding: 10, background: "#eff6ff", border: "1px solid #93c5fd", borderRadius: 8, display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13 }}>
                 <Clock size={16} color="var(--status-blue)" style={{ flexShrink: 0, marginTop: 2 }} />
                 <div>
-                  <strong style={{ color: "#1e40af" }}>Time-Limited Visa</strong> — This candidate&apos;s Graduate Visa allows unrestricted employment now, but will expire. If you wish to retain them long-term, sponsorship will be required for a visa extension.
+                  <strong style={{ color: "#1e40af" }}>Time-Limited Visa</strong> — This candidate&apos;s {visaLabel(c.visa)} allows unrestricted employment now, but will expire{c.visaExpiry ? ` on ${c.visaExpiry}` : ""}. If you wish to retain them long-term, sponsorship will be required for a visa extension.
                 </div>
               </div>
             )}
@@ -226,17 +402,48 @@ function CouncilCandidates() {
   );
 }
 
+/* ─── INTERVIEWS TAB ─── */
 function CouncilInterviews() {
+  const { vacancies, candidates, showToast } = useData();
+  const mccVacancyIds = useMemo(() => new Set(vacancies.filter((v) => v.council === "Manchester CC").map((v) => v.id)), [vacancies]);
+  const interviewingCandidates = useMemo(
+    () => candidates.filter((c) => c.status === "interviewing" && c.assignedVacancy && mccVacancyIds.has(c.assignedVacancy)),
+    [candidates, mccVacancyIds]
+  );
+
+  // Generate interview schedule from real data
+  const interviews = useMemo(() => {
+    const baseDate = new Date();
+    return interviewingCandidates.map((c, i) => {
+      const interviewDate = new Date(baseDate);
+      interviewDate.setDate(interviewDate.getDate() + i + 2);
+      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const vacancy = vacancies.find((v) => v.id === c.assignedVacancy);
+      return {
+        candidateId: c.id,
+        candidate: c.name,
+        role: `${c.role} — ${vacancy?.team || "TBC"}`,
+        date: `${dayNames[interviewDate.getDay()]} ${interviewDate.getDate()} ${monthNames[interviewDate.getMonth()]} ${interviewDate.getFullYear()}`,
+        time: i % 2 === 0 ? "10:00 - 11:00" : "14:00 - 15:30",
+        panel: [vacancy?.manager || "TBC", "Panel Member 2"],
+        type: i % 2 === 0 ? "MS Teams" : "In-person",
+        status: i === 0 ? "confirmed" : "pending",
+      };
+    });
+  }, [interviewingCandidates, vacancies]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <h2 style={{ fontSize: 24, fontWeight: 700 }}>Interview Schedule</h2>
+
+      {interviews.length === 0 && (
+        <div className="card" style={{ textAlign: "center", padding: 40, color: "var(--text-secondary)" }}>No interviews currently scheduled. Approve candidates for interview from the Candidates tab.</div>
+      )}
+
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {[
-          { candidate: "Sarah Mitchell", role: "Senior SW — Children in Need", date: "Tue 25 Mar 2026", time: "10:00 - 11:00", panel: ["James Okafor", "Rachel Adams"], type: "MS Teams", status: "confirmed" },
-          { candidate: "David Williams", role: "Team Manager — Safeguarding", date: "Wed 26 Mar 2026", time: "14:00 - 15:30", panel: ["Rachel Adams", "Linda Chowdhury", "External Assessor"], type: "In-person", status: "confirmed" },
-          { candidate: "Amara Osei", role: "Social Worker — MASH", date: "Thu 27 Mar 2026", time: "09:30 - 10:30", panel: ["Linda Chowdhury", "James Okafor"], type: "MS Teams", status: "pending" },
-        ].map((int, i) => (
-          <div key={i} className="card">
+        {interviews.map((int, i) => (
+          <div key={int.candidateId} className="card">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
               <div>
                 <h3 style={{ fontSize: 16, fontWeight: 700 }}>{int.candidate}</h3>
@@ -249,7 +456,7 @@ function CouncilInterviews() {
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <span className={`badge ${int.status === "confirmed" ? "badge-green" : "badge-amber"}`}>{int.status}</span>
-                <button className="btn btn-outline btn-sm">View Scorecard</button>
+                <button className="btn btn-outline btn-sm" onClick={() => showToast(`Scorecard for ${int.candidate} — not yet completed`, "info")}>View Scorecard</button>
               </div>
             </div>
 
@@ -264,7 +471,23 @@ function CouncilInterviews() {
   );
 }
 
+/* ─── COMPLIANCE TAB ─── */
 function CouncilCompliance() {
+  const { vacancies, candidates } = useData();
+  const mccVacancyIds = useMemo(() => new Set(vacancies.filter((v) => v.council === "Manchester CC").map((v) => v.id)), [vacancies]);
+  const mccCandidates = useMemo(() => candidates.filter((c) => c.assignedVacancy && mccVacancyIds.has(c.assignedVacancy)), [candidates, mccVacancyIds]);
+
+  const rtwVerified = mccCandidates.filter((c) => c.rtw === "verified").length;
+  const needSponsorship = mccCandidates.filter((c) => c.rtw === "requires_sponsorship").length;
+  const timeLimited = mccCandidates.filter((c) => c.rtw === "time_limited").length;
+  const visaExpiringSoon = mccCandidates.filter((c) => {
+    if (!c.visaExpiry) return false;
+    const expiry = new Date(c.visaExpiry);
+    const sixMonths = new Date();
+    sixMonths.setMonth(sixMonths.getMonth() + 6);
+    return expiry <= sixMonths;
+  }).length;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <h2 style={{ fontSize: 24, fontWeight: 700 }}>Compliance Tracking</h2>
@@ -277,19 +500,19 @@ function CouncilCompliance() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 16 }}>
           <div style={{ padding: 12, background: "#f0fdf4", borderRadius: 8, textAlign: "center" }}>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--status-green)" }}>28</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--status-green)" }}>{rtwVerified}</div>
             <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>RTW Verified</div>
           </div>
           <div style={{ padding: 12, background: "#fffbeb", borderRadius: 8, textAlign: "center" }}>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--status-amber)" }}>3</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--status-amber)" }}>{needSponsorship}</div>
             <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>Need Sponsorship</div>
           </div>
           <div style={{ padding: 12, background: "#eff6ff", borderRadius: 8, textAlign: "center" }}>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--status-blue)" }}>2</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--status-blue)" }}>{timeLimited}</div>
             <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>Time-Limited</div>
           </div>
           <div style={{ padding: 12, background: "#fef2f2", borderRadius: 8, textAlign: "center" }}>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--status-red)" }}>1</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--status-red)" }}>{visaExpiringSoon}</div>
             <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>Visa Expiring &lt;6mo</div>
           </div>
         </div>
@@ -311,34 +534,50 @@ function CouncilCompliance() {
           <table>
             <thead><tr><th>Candidate</th><th>SWE</th><th>DBS</th><th>Refs</th><th>Right to Work</th><th>Sponsorship</th><th>Quals</th><th>Overall</th></tr></thead>
             <tbody>
-              {shortlistedCandidates.map((c, i) => (
-                <tr key={i}>
-                  <td style={{ fontWeight: 600 }}>{c.name}</td>
-                  <td><CheckCircle2 size={16} color="var(--status-green)" /></td>
-                  <td>{i < 3 ? <CheckCircle2 size={16} color="var(--status-green)" /> : <Clock size={16} color="var(--text-secondary)" />}</td>
-                  <td>{i < 2 ? <CheckCircle2 size={16} color="var(--status-green)" /> : <AlertTriangle size={16} color="var(--status-amber)" />}</td>
-                  <td>
-                    <span className={`badge ${c.rtw === "verified" ? "badge-green" : "badge-amber"}`}>
-                      {c.rtwLabel}
-                    </span>
-                  </td>
-                  <td>
-                    {c.rtw === "requires_sponsorship" ? (
-                      <span className="badge badge-amber">⚠️ Required</span>
-                    ) : c.rtw === "time_limited" ? (
-                      <span className="badge badge-blue">Future</span>
-                    ) : (
-                      <span className="badge badge-green">Not needed</span>
-                    )}
-                  </td>
-                  <td>{i !== 4 ? <CheckCircle2 size={16} color="var(--status-green)" /> : <Clock size={16} color="var(--text-secondary)" />}</td>
-                  <td>
-                    <div className="progress-bar" style={{ width: 60 }}>
-                      <div className="progress-fill" style={{ width: `${i < 2 ? 100 : i < 4 ? 72 : 50}%`, background: i < 2 ? "var(--status-green)" : "var(--status-amber)" }} />
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {mccCandidates.map((c) => {
+                const checks = [
+                  c.sweStatus === "active" ? 1 : 0,
+                  c.dbs === "done" ? 1 : 0,
+                  c.ref1 === "done" ? 1 : 0,
+                  c.ref2 === "done" ? 1 : 0,
+                  c.rtw === "verified" ? 1 : 0,
+                  c.quals === "done" ? 1 : 0,
+                ];
+                const pct = Math.round((checks.reduce((a, b) => a + b, 0) / checks.length) * 100);
+                return (
+                  <tr key={c.id}>
+                    <td style={{ fontWeight: 600 }}>{c.name}</td>
+                    <td>{c.sweStatus === "active" ? <CheckCircle2 size={16} color="var(--status-green)" /> : c.sweStatus === "conditions" ? <AlertTriangle size={16} color="var(--status-amber)" /> : <Clock size={16} color="var(--text-secondary)" />}</td>
+                    <td>{c.dbs === "done" ? <CheckCircle2 size={16} color="var(--status-green)" /> : <Clock size={16} color="var(--text-secondary)" />}</td>
+                    <td>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {c.ref1 === "done" ? <CheckCircle2 size={16} color="var(--status-green)" /> : c.ref1 === "warning" ? <AlertTriangle size={16} color="var(--status-amber)" /> : <Clock size={16} color="var(--text-secondary)" />}
+                        {c.ref2 === "done" ? <CheckCircle2 size={16} color="var(--status-green)" /> : c.ref2 === "warning" ? <AlertTriangle size={16} color="var(--status-amber)" /> : <Clock size={16} color="var(--text-secondary)" />}
+                      </div>
+                    </td>
+                    <td>
+                      <span className={`badge ${c.rtw === "verified" ? "badge-green" : "badge-amber"}`}>
+                        {rtwLabel(c.rtw)}
+                      </span>
+                    </td>
+                    <td>
+                      {c.rtw === "requires_sponsorship" ? (
+                        <span className="badge badge-amber">⚠️ Required</span>
+                      ) : c.rtw === "time_limited" ? (
+                        <span className="badge badge-blue">Future</span>
+                      ) : (
+                        <span className="badge badge-green">Not needed</span>
+                      )}
+                    </td>
+                    <td>{c.quals === "done" ? <CheckCircle2 size={16} color="var(--status-green)" /> : <Clock size={16} color="var(--text-secondary)" />}</td>
+                    <td>
+                      <div className="progress-bar" style={{ width: 60 }}>
+                        <div className="progress-fill" style={{ width: `${pct}%`, background: pct >= 80 ? "var(--status-green)" : "var(--status-amber)" }} />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -347,7 +586,35 @@ function CouncilCompliance() {
   );
 }
 
+/* ─── REPORTS TAB ─── */
 function CouncilReports() {
+  const { vacancies, candidates } = useData();
+  const mccVacancies = useMemo(() => vacancies.filter((v) => v.council === "Manchester CC"), [vacancies]);
+  const mccVacancyIds = useMemo(() => new Set(mccVacancies.map((v) => v.id)), [mccVacancies]);
+  const mccCandidates = useMemo(() => candidates.filter((c) => c.assignedVacancy && mccVacancyIds.has(c.assignedVacancy)), [candidates, mccVacancyIds]);
+
+  const filledCount = mccVacancies.filter((v) => v.status === "filled").length;
+  const avgDays = mccVacancies.length > 0 ? Math.round(mccVacancies.reduce((s, v) => s + v.daysOpen, 0) / mccVacancies.length) : 0;
+
+  // Source breakdown from real candidate data
+  const sourceMap: Record<string, number> = {};
+  mccCandidates.forEach((c) => {
+    const src = c.source.includes("WhatsApp") ? "PSP WhatsApp" : c.source.includes("PSP") ? "PSP Network" : c.source === "Direct" ? "Direct Applications" : c.source;
+    sourceMap[src] = (sourceMap[src] || 0) + 1;
+  });
+  const total = mccCandidates.length || 1;
+  const sources = Object.entries(sourceMap)
+    .map(([source, count]) => ({ source, pct: Math.round((count / total) * 100) }))
+    .sort((a, b) => b.pct - a.pct);
+
+  const sourceColors: Record<string, string> = {
+    "PSP Network": "var(--psp-green)",
+    "Direct Applications": "var(--council-blue)",
+    "PSP WhatsApp": "var(--status-blue)",
+    "Agency": "var(--status-amber)",
+    "Direct": "var(--council-blue)",
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <h2 style={{ fontSize: 24, fontWeight: 700 }}>Recruitment Reports</h2>
@@ -355,25 +622,24 @@ function CouncilReports() {
         <div className="card">
           <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>This Quarter</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-secondary)" }}>Vacancies Filled</span><span style={{ fontWeight: 700 }}>8</span></div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-secondary)" }}>Avg Time-to-Hire</span><span style={{ fontWeight: 700, color: "var(--status-green)" }}>19 days</span></div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-secondary)" }}>Cost per Hire (via PSP)</span><span style={{ fontWeight: 700 }}>£3,200</span></div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-secondary)" }}>Cost per Hire (agency avg)</span><span style={{ fontWeight: 700, color: "var(--status-red)" }}>£8,500</span></div>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: "2px solid var(--border)" }}><span style={{ fontWeight: 700, color: "var(--status-green)" }}>Savings vs Agency</span><span style={{ fontWeight: 700, color: "var(--status-green)", fontSize: 18 }}>£42,400</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-secondary)" }}>Vacancies Filled</span><span style={{ fontWeight: 700 }}>{filledCount}</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-secondary)" }}>Avg Time-to-Hire</span><span style={{ fontWeight: 700, color: "var(--status-green)" }}>{avgDays} days</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-secondary)" }}>Cost per Hire (via PSP)</span><span style={{ fontWeight: 700 }}>{"\u00A3"}3,200</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-secondary)" }}>Cost per Hire (agency avg)</span><span style={{ fontWeight: 700, color: "var(--status-red)" }}>{"\u00A3"}8,500</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: "2px solid var(--border)" }}>
+              <span style={{ fontWeight: 700, color: "var(--status-green)" }}>Savings vs Agency</span>
+              <span style={{ fontWeight: 700, color: "var(--status-green)", fontSize: 18 }}>{"\u00A3"}{(filledCount * 5300).toLocaleString()}</span>
+            </div>
           </div>
         </div>
         <div className="card">
           <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Candidate Sources</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {[
-              { source: "PSP Network", pct: 45, color: "var(--psp-green)" },
-              { source: "Direct Applications", pct: 25, color: "var(--council-blue)" },
-              { source: "PSP WhatsApp", pct: 18, color: "var(--status-blue)" },
-              { source: "Agency", pct: 12, color: "var(--status-amber)" },
-            ].map((s, i) => (
+            {sources.length === 0 && <div style={{ color: "var(--text-secondary)", fontSize: 13 }}>No candidate data available yet.</div>}
+            {sources.map((s, i) => (
               <div key={i}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}><span>{s.source}</span><span style={{ fontWeight: 600 }}>{s.pct}%</span></div>
-                <div className="progress-bar"><div className="progress-fill" style={{ width: `${s.pct}%`, background: s.color }} /></div>
+                <div className="progress-bar"><div className="progress-fill" style={{ width: `${s.pct}%`, background: sourceColors[s.source] || "var(--council-blue)" }} /></div>
               </div>
             ))}
           </div>
