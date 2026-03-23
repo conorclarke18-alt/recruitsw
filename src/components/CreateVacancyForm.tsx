@@ -43,6 +43,8 @@ export default function CreateVacancyForm({ open, onClose }: { open: boolean; on
       applicationLink: `apply.recruitsw.co.uk/${form.council.toLowerCase().replace(/[^a-z]+/g, "")}/${slug}`,
       applicationLinkActive: false,
       importedFrom: "psp_created",
+      acceptsSponsorship: true,
+      sponsorLicenceHeld: false,
     });
     setForm({ council: "Manchester CC", role: "", team: "", manager: "", grade: "Grade 8", salaryMin: "", salaryMax: "", status: "draft" as "draft" | "live", description: "", essential: "", desirable: "" });
     setStep(1);

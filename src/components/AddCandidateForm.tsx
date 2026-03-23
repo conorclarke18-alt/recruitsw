@@ -54,6 +54,11 @@ export default function AddCandidateForm({ open, onClose }: { open: boolean; onC
       visaExpiry: form.visaExpiry, dbs: form.dbs, ref1: form.ref1, ref2: form.ref2,
       rtw: form.rtw, quals: form.quals, location: form.location, available: form.available,
       crossCouncil: form.crossCouncil, notes: form.notes,
+      cvFileName: form.name.replace(/ /g, "_") + "_CV.pdf",
+      cvUploaded: true,
+      submittedBy: "PSP",
+      submittedAt: new Date().toISOString().split("T")[0],
+      emailNotifications: ["Application received - " + new Date().toLocaleDateString("en-GB")],
     });
     setForm({ name: "", email: "", phone: "", role: "", pqe: "", swe: "", sweStatus: "active", source: "PSP Network", visa: "british_citizen", visaDetails: "", visaExpiry: "", location: "", available: "", dbs: "pending", ref1: "pending", ref2: "pending", rtw: "pending", quals: "pending", crossCouncil: false, notes: "" });
     setStep(1);

@@ -45,6 +45,11 @@ export default function ApplyPage() {
       available: form.available,
       crossCouncil: false,
       notes: `Applied via application link for ${vacancy?.role || "vacancy"}. ${form.coverLetter ? "Cover note: " + form.coverLetter : ""}`,
+      cvFileName: "",
+      cvUploaded: false,
+      submittedBy: "Direct Application",
+      submittedAt: new Date().toISOString().split("T")[0],
+      emailNotifications: ["Application received - " + new Date().toLocaleDateString("en-GB")],
     });
     setSubmitted(true);
     showToast("Application submitted successfully!", "success");

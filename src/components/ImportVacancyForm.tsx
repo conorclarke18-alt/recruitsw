@@ -72,6 +72,8 @@ export default function ImportVacancyForm({ open, onClose, council }: { open: bo
       applicationLink: `apply.recruitsw.co.uk/${council.toLowerCase().replace(/[^a-z]+/g, "")}/${slug}`,
       applicationLinkActive: true,
       importedFrom: method === "manual" ? "manual" : "ats_import",
+      acceptsSponsorship: true,
+      sponsorLicenceHeld: council === "Manchester CC" || council === "Salford CC",
     });
     reset();
   };
