@@ -25,6 +25,7 @@ export default function CreateVacancyForm({ open, onClose }: { open: boolean; on
 
   const handleSubmit = () => {
     if (!form.role || !form.team || !form.manager) return;
+    const slug = form.role.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 30);
     addVacancy({
       council: form.council,
       role: form.role,
@@ -36,6 +37,12 @@ export default function CreateVacancyForm({ open, onClose }: { open: boolean; on
       description: form.description,
       essential: form.essential,
       desirable: form.desirable,
+      atsReference: "",
+      atsSystem: "None",
+      atsUrl: "",
+      applicationLink: `apply.recruitsw.co.uk/${form.council.toLowerCase().replace(/[^a-z]+/g, "")}/${slug}`,
+      applicationLinkActive: false,
+      importedFrom: "psp_created",
     });
     setForm({ council: "Manchester CC", role: "", team: "", manager: "", grade: "Grade 8", salaryMin: "", salaryMax: "", status: "draft" as "draft" | "live", description: "", essential: "", desirable: "" });
     setStep(1);

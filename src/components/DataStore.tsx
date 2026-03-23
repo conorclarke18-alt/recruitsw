@@ -22,6 +22,13 @@ export interface Vacancy {
   description: string;
   essential: string;
   desirable: string;
+  // ATS Integration fields
+  atsReference: string;          // e.g. "JT-MCC-2026-0847"
+  atsSystem: string;             // e.g. "Jobtrain", "Eploy", "Tribepad"
+  atsUrl: string;                // link back to council's ATS listing
+  applicationLink: string;       // unique RecruitSW apply URL
+  applicationLinkActive: boolean;
+  importedFrom: "manual" | "ats_import" | "api_sync" | "psp_created";
 }
 
 export interface Candidate {
@@ -52,6 +59,32 @@ export interface Candidate {
   createdAt: string;
 }
 
+export interface VacancyRequest {
+  id: string;
+  council: string;
+  requestedBy: string;  // "James Okafor" or "Sunita Patel" etc
+  requestedByRole: "hiring_manager" | "recruitment_team";
+  role: string;
+  team: string;
+  grade: string;
+  salaryMin: string;
+  salaryMax: string;
+  description: string;
+  essential: string;
+  desirable: string;
+  justification: string; // why the role is needed
+  replacementFor: string; // leaver name or "New post"
+  fundingApproved: boolean;
+  atsReference: string; // reference from their internal system (Jobtrain, Eploy etc)
+  internalSystem: string; // "Jobtrain" | "Eploy" | "Tribepad" | "iTrent" | "Oracle" | "Manual" | "None"
+  status: "pending_approval" | "approved" | "rejected" | "converted"; // converted = turned into a live vacancy
+  createdAt: string;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  rejectionReason: string | null;
+  convertedVacancyId: string | null;
+}
+
 export interface Toast {
   id: string;
   message: string;
@@ -69,6 +102,11 @@ interface DataContextType {
   updateCandidate: (id: string, updates: Partial<Candidate>) => void;
   deleteCandidate: (id: string) => void;
   assignCandidate: (candidateId: string, vacancyId: string) => void;
+  vacancyRequests: VacancyRequest[];
+  addVacancyRequest: (r: Omit<VacancyRequest, "id" | "createdAt" | "status" | "approvedBy" | "approvedAt" | "rejectionReason" | "convertedVacancyId">) => void;
+  approveVacancyRequest: (id: string, approvedBy: string) => void;
+  rejectVacancyRequest: (id: string, reason: string) => void;
+  convertRequestToVacancy: (requestId: string) => void;
   showToast: (message: string, type?: Toast["type"]) => void;
   dismissToast: (id: string) => void;
 }
@@ -83,12 +121,12 @@ export function useData() {
 
 // Default data
 const defaultVacancies: Vacancy[] = [
-  { id: "V-2024-001", council: "Manchester CC", role: "Senior Social Worker — Children in Need", team: "Children's Services", manager: "James Okafor", grade: "Grade 10", salary: "£42,708 - £46,731", status: "live", applicants: 8, shortlisted: 3, daysOpen: 12, createdAt: "2026-03-11", description: "We are seeking an experienced Senior Social Worker to join our Children in Need team. You will manage a complex caseload and provide supervision to newly qualified staff.", essential: "SWE registered, 3+ years PQE in children's services, experience with court work", desirable: "Practice educator qualification, NAAS assessed" },
-  { id: "V-2024-002", council: "Manchester CC", role: "Team Manager — Safeguarding", team: "Safeguarding Hub", manager: "Rachel Adams", grade: "Grade 12", salary: "£52,805 - £56,024", status: "live", applicants: 4, shortlisted: 1, daysOpen: 21, createdAt: "2026-03-02", description: "Lead a team of social workers within the Safeguarding Hub, managing referrals, strategy discussions, and S47 enquiries.", essential: "SWE registered, 5+ years PQE, 2+ years management experience", desirable: "Experience with multi-agency partnerships" },
-  { id: "V-2024-003", council: "Salford CC", role: "ASYE Social Worker", team: "Referral & Assessment", manager: "James Okafor", grade: "Grade 8", salary: "£33,945 - £37,336", status: "live", applicants: 14, shortlisted: 5, daysOpen: 7, createdAt: "2026-03-16", description: "An exciting opportunity for a newly qualified social worker to complete their ASYE within a supportive Referral & Assessment team.", essential: "SWE registered, social work degree, right to work in UK", desirable: "Placement experience in children's services" },
-  { id: "V-2024-004", council: "Stockport MBC", role: "Practice Manager — Adults", team: "Adult Services", manager: "Linda Chowdhury", grade: "Grade 11", salary: "£47,754 - £51,802", status: "interviewing", applicants: 6, shortlisted: 3, daysOpen: 28, createdAt: "2026-02-23", description: "Oversee a team of adult social workers, ensuring high-quality assessments and care planning.", essential: "SWE registered, 5+ years PQE in adults, management experience", desirable: "BIA qualification, AMHP approved" },
-  { id: "V-2024-005", council: "Manchester CC", role: "Social Worker — MASH", team: "Multi-Agency Hub", manager: "Linda Chowdhury", grade: "Grade 9", salary: "£37,336 - £40,476", status: "offer", applicants: 11, shortlisted: 4, daysOpen: 35, createdAt: "2026-02-16", description: "Work within the Multi-Agency Safeguarding Hub triaging referrals and coordinating with partner agencies.", essential: "SWE registered, 2+ years PQE, children's experience", desirable: "MASH or duty experience" },
-  { id: "V-2024-006", council: "Trafford", role: "Senior Practitioner — LAC", team: "Looked After Children", manager: "Rachel Adams", grade: "Grade 10", salary: "£42,708 - £46,731", status: "draft", applicants: 0, shortlisted: 0, daysOpen: 0, createdAt: "2026-03-23", description: "Join our LAC team supporting children in care, attending reviews and ensuring care plans are progressed.", essential: "SWE registered, 4+ years PQE, LAC experience", desirable: "Practice educator, life story work experience" },
+  { id: "V-2024-001", council: "Manchester CC", role: "Senior Social Worker — Children in Need", team: "Children's Services", manager: "James Okafor", grade: "Grade 10", salary: "£42,708 - £46,731", status: "live", applicants: 8, shortlisted: 3, daysOpen: 12, createdAt: "2026-03-11", description: "We are seeking an experienced Senior Social Worker to join our Children in Need team. You will manage a complex caseload and provide supervision to newly qualified staff.", essential: "SWE registered, 3+ years PQE in children's services, experience with court work", desirable: "Practice educator qualification, NAAS assessed", atsReference: "JT-MCC-2026-0831", atsSystem: "Jobtrain", atsUrl: "https://jobs.manchester.gov.uk/vacancy/senior-social-worker-cin-0831", applicationLink: "apply.recruitsw.co.uk/mcc/senior-sw-cin-001", applicationLinkActive: true, importedFrom: "ats_import" },
+  { id: "V-2024-002", council: "Manchester CC", role: "Team Manager — Safeguarding", team: "Safeguarding Hub", manager: "Rachel Adams", grade: "Grade 12", salary: "£52,805 - £56,024", status: "live", applicants: 4, shortlisted: 1, daysOpen: 21, createdAt: "2026-03-02", description: "Lead a team of social workers within the Safeguarding Hub, managing referrals, strategy discussions, and S47 enquiries.", essential: "SWE registered, 5+ years PQE, 2+ years management experience", desirable: "Experience with multi-agency partnerships", atsReference: "JT-MCC-2026-0819", atsSystem: "Jobtrain", atsUrl: "https://jobs.manchester.gov.uk/vacancy/team-manager-safeguarding-0819", applicationLink: "apply.recruitsw.co.uk/mcc/tm-safeguarding-002", applicationLinkActive: true, importedFrom: "ats_import" },
+  { id: "V-2024-003", council: "Salford CC", role: "ASYE Social Worker", team: "Referral & Assessment", manager: "James Okafor", grade: "Grade 8", salary: "£33,945 - £37,336", status: "live", applicants: 14, shortlisted: 5, daysOpen: 7, createdAt: "2026-03-16", description: "An exciting opportunity for a newly qualified social worker to complete their ASYE within a supportive Referral & Assessment team.", essential: "SWE registered, social work degree, right to work in UK", desirable: "Placement experience in children's services", atsReference: "EP-SCC-4521", atsSystem: "Eploy", atsUrl: "https://salford.eploy.net/vacancy/4521", applicationLink: "apply.recruitsw.co.uk/salford/asye-sw-003", applicationLinkActive: true, importedFrom: "ats_import" },
+  { id: "V-2024-004", council: "Stockport MBC", role: "Practice Manager — Adults", team: "Adult Services", manager: "Linda Chowdhury", grade: "Grade 11", salary: "£47,754 - £51,802", status: "interviewing", applicants: 6, shortlisted: 3, daysOpen: 28, createdAt: "2026-02-23", description: "Oversee a team of adult social workers, ensuring high-quality assessments and care planning.", essential: "SWE registered, 5+ years PQE in adults, management experience", desirable: "BIA qualification, AMHP approved", atsReference: "SMBC-2026-PM-112", atsSystem: "iTrent", atsUrl: "", applicationLink: "apply.recruitsw.co.uk/stockport/practice-mgr-004", applicationLinkActive: true, importedFrom: "manual" },
+  { id: "V-2024-005", council: "Manchester CC", role: "Social Worker — MASH", team: "Multi-Agency Hub", manager: "Linda Chowdhury", grade: "Grade 9", salary: "£37,336 - £40,476", status: "offer", applicants: 11, shortlisted: 4, daysOpen: 35, createdAt: "2026-02-16", description: "Work within the Multi-Agency Safeguarding Hub triaging referrals and coordinating with partner agencies.", essential: "SWE registered, 2+ years PQE, children's experience", desirable: "MASH or duty experience", atsReference: "JT-MCC-2026-0802", atsSystem: "Jobtrain", atsUrl: "https://jobs.manchester.gov.uk/vacancy/sw-mash-0802", applicationLink: "apply.recruitsw.co.uk/mcc/sw-mash-005", applicationLinkActive: false, importedFrom: "ats_import" },
+  { id: "V-2024-006", council: "Trafford", role: "Senior Practitioner — LAC", team: "Looked After Children", manager: "Rachel Adams", grade: "Grade 10", salary: "£42,708 - £46,731", status: "draft", applicants: 0, shortlisted: 0, daysOpen: 0, createdAt: "2026-03-23", description: "Join our LAC team supporting children in care, attending reviews and ensuring care plans are progressed.", essential: "SWE registered, 4+ years PQE, LAC experience", desirable: "Practice educator, life story work experience", atsReference: "", atsSystem: "None", atsUrl: "", applicationLink: "apply.recruitsw.co.uk/trafford/senior-lac-006", applicationLinkActive: false, importedFrom: "psp_created" },
 ];
 
 const defaultCandidates: Candidate[] = [
@@ -101,12 +139,56 @@ const defaultCandidates: Candidate[] = [
   { id: "C-007", name: "James Adeyemi", email: "j.adeyemi@email.com", phone: "07345 678901", role: "Practice Manager", pqe: "9 years", swe: "SW56789", sweStatus: "active", match: 85, source: "PSP Network", visa: "health_care_visa", visaDetails: "Health & Care Worker Visa — Expires 30/06/2028 — Council must hold sponsor licence", visaExpiry: "2028-06-30", dbs: "pending", ref1: "pending", ref2: "pending", rtw: "requires_sponsorship", quals: "done", location: "Rochdale", available: "6 weeks", crossCouncil: false, assignedVacancy: "V-2024-004", status: "screening", notes: "Strong practice manager. Health & Care visa — verify council sponsor licence.", createdAt: "2026-03-15" },
 ];
 
+const defaultVacancyRequests: VacancyRequest[] = [
+  {
+    id: "VR-001", council: "Manchester CC", requestedBy: "James Okafor", requestedByRole: "hiring_manager",
+    role: "Social Worker — Looked After Children", team: "Children's Services", grade: "Grade 9",
+    salaryMin: "37336", salaryMax: "40476",
+    description: "Replacement for Sarah Thompson who is leaving at end of April. Urgent need to maintain safe caseloads in the LAC team.",
+    essential: "SWE registered, 2+ years PQE in children's services, LAC experience",
+    desirable: "Life story work experience, court report writing",
+    justification: "Replacement post — current postholder leaving 30/04/2026. Team already carrying 2 vacancies. Caseloads at 22 per SW vs target of 18.",
+    replacementFor: "Sarah Thompson (leaver)", fundingApproved: true,
+    atsReference: "JT-MCC-2026-0847", internalSystem: "Jobtrain",
+    status: "pending_approval", createdAt: "2026-03-22",
+    approvedBy: null, approvedAt: null, rejectionReason: null, convertedVacancyId: null,
+  },
+  {
+    id: "VR-002", council: "Manchester CC", requestedBy: "Rachel Adams", requestedByRole: "hiring_manager",
+    role: "Advanced Practitioner — Edge of Care", team: "Edge of Care Service", grade: "Grade 11",
+    salaryMin: "47754", salaryMax: "51802",
+    description: "New post to support the expansion of the Edge of Care service, working with families to prevent children entering care.",
+    essential: "SWE registered, 5+ years PQE, experience with family intervention",
+    desirable: "Systemic practice training, Signs of Safety accredited",
+    justification: "New post — funded by DfE Family Safeguarding grant. Service expanding from 3 to 5 practitioners.",
+    replacementFor: "New post (DfE funded)", fundingApproved: true,
+    atsReference: "", internalSystem: "Jobtrain",
+    status: "pending_approval", createdAt: "2026-03-21",
+    approvedBy: null, approvedAt: null, rejectionReason: null, convertedVacancyId: null,
+  },
+  {
+    id: "VR-003", council: "Manchester CC", requestedBy: "Sunita Patel", requestedByRole: "recruitment_team",
+    role: "2x ASYE Social Workers — Duty & Assessment", team: "Duty & Assessment", grade: "Grade 8",
+    salaryMin: "33945", salaryMax: "37336",
+    description: "Two ASYE positions to support the September 2026 ASYE intake. Strong ASYE programme with dedicated support.",
+    essential: "SWE registered, social work degree, right to work in UK",
+    desirable: "Placement in children's services, research interest in child development",
+    justification: "Annual ASYE intake. Budget approved in workforce plan. Two positions to replace natural turnover.",
+    replacementFor: "Annual ASYE intake", fundingApproved: true,
+    atsReference: "JT-MCC-2026-0851", internalSystem: "Jobtrain",
+    status: "approved", createdAt: "2026-03-18",
+    approvedBy: "Sunita Patel", approvedAt: "2026-03-19", rejectionReason: null, convertedVacancyId: null,
+  },
+];
+
 let nextVacancyNum = 7;
 let nextCandidateNum = 8;
+let nextRequestNum = 4;
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const [vacancies, setVacancies] = useState<Vacancy[]>(defaultVacancies);
   const [candidates, setCandidates] = useState<Candidate[]>(defaultCandidates);
+  const [vacancyRequests, setVacancyRequests] = useState<VacancyRequest[]>(defaultVacancyRequests);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const showToast = useCallback((message: string, type: Toast["type"] = "success") => {
@@ -174,8 +256,68 @@ export function DataProvider({ children }: { children: ReactNode }) {
     showToast("Candidate assigned to vacancy");
   }, [showToast]);
 
+  const addVacancyRequest = useCallback((r: Omit<VacancyRequest, "id" | "createdAt" | "status" | "approvedBy" | "approvedAt" | "rejectionReason" | "convertedVacancyId">) => {
+    const newR: VacancyRequest = {
+      ...r,
+      id: `VR-${String(nextRequestNum++).padStart(3, "0")}`,
+      createdAt: new Date().toISOString().split("T")[0],
+      status: "pending_approval",
+      approvedBy: null,
+      approvedAt: null,
+      rejectionReason: null,
+      convertedVacancyId: null,
+    };
+    setVacancyRequests((prev) => [newR, ...prev]);
+    showToast(`Vacancy request "${r.role}" submitted`);
+  }, [showToast]);
+
+  const approveVacancyRequest = useCallback((id: string, approvedBy: string) => {
+    setVacancyRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status: "approved" as const, approvedBy, approvedAt: new Date().toISOString().split("T")[0] } : r)));
+    showToast("Vacancy request approved", "success");
+  }, [showToast]);
+
+  const rejectVacancyRequest = useCallback((id: string, reason: string) => {
+    setVacancyRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status: "rejected" as const, rejectionReason: reason } : r)));
+    showToast("Vacancy request rejected", "info");
+  }, [showToast]);
+
+  const convertRequestToVacancy = useCallback((requestId: string) => {
+    setVacancyRequests((prev) => {
+      const request = prev.find((r) => r.id === requestId);
+      if (!request || request.status !== "approved") return prev;
+      const vacancyId = `V-2024-${String(nextVacancyNum++).padStart(3, "0")}`;
+      const slug = request.role.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 30);
+      const newVacancy: Vacancy = {
+        id: vacancyId,
+        council: request.council,
+        role: request.role,
+        team: request.team,
+        manager: request.requestedBy,
+        grade: request.grade,
+        salary: `£${Number(request.salaryMin).toLocaleString()} - £${Number(request.salaryMax).toLocaleString()}`,
+        status: "draft",
+        applicants: 0,
+        shortlisted: 0,
+        daysOpen: 0,
+        createdAt: new Date().toISOString().split("T")[0],
+        description: request.description,
+        essential: request.essential,
+        desirable: request.desirable,
+        atsReference: request.atsReference,
+        atsSystem: request.internalSystem,
+        atsUrl: "",
+        applicationLink: `apply.recruitsw.co.uk/${request.council.toLowerCase().replace(/[^a-z]+/g, "")}/${slug}`,
+        applicationLinkActive: false,
+        importedFrom: "manual",
+      };
+      setVacancies((vPrev) => [newVacancy, ...vPrev]);
+      showToast(`Vacancy "${request.role}" created from request`);
+      return prev.map((r) => (r.id === requestId ? { ...r, status: "converted" as const, convertedVacancyId: vacancyId } : r));
+    });
+  }, [showToast]);
+
   return (
-    <DataContext.Provider value={{ vacancies, candidates, toasts, addVacancy, updateVacancy, deleteVacancy, addCandidate, updateCandidate, deleteCandidate, assignCandidate, showToast, dismissToast }}>
+    <DataContext.Provider value={{ vacancies, candidates, toasts, addVacancy, updateVacancy, deleteVacancy, addCandidate, updateCandidate, deleteCandidate, assignCandidate, vacancyRequests, addVacancyRequest, approveVacancyRequest, rejectVacancyRequest, convertRequestToVacancy, showToast, dismissToast }}>
       {children}
       {/* Toast notifications */}
       <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999, display: "flex", flexDirection: "column", gap: 8 }}>

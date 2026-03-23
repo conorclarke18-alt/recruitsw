@@ -7,6 +7,8 @@ import {
   Shield, Plane, Flag, UserCheck, FileText, Download, ChevronDown, ChevronUp, X
 } from "lucide-react";
 import { useData, Vacancy, Candidate } from "./DataStore";
+import ImportVacancyForm from "./ImportVacancyForm";
+import VacancyRequestForm from "./VacancyRequestForm";
 
 // Helpers
 function visaLabel(visa: Candidate["visa"]): string {
@@ -169,7 +171,7 @@ function CouncilDashboard() {
                     </tr>
                     {isExpanded && (
                       <tr key={`${v.id}-detail`}>
-                        <td colSpan={8} style={{ background: "#f8fafc", padding: 16 }}>
+                        <td colSpan={9} style={{ background: "#f8fafc", padding: 16 }}>
                           <VacancyDetail vacancy={v} />
                         </td>
                       </tr>
@@ -224,12 +226,35 @@ function VacancyDetail({ vacancy }: { vacancy: Vacancy }) {
           <div style={{ fontSize: 13 }}>{vacancy.desirable}</div>
         </div>
       </div>
+      {/* ATS & Application Link */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        {vacancy.atsReference && (
+          <div style={{ padding: 10, background: "#eff6ff", borderRadius: 8 }}>
+            <div style={{ fontSize: 11, color: "#1e40af", fontWeight: 600, marginBottom: 4 }}>Internal System Reference</div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{vacancy.atsReference}</div>
+            <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>Imported from {vacancy.atsSystem}</div>
+            {vacancy.atsUrl && <a href={vacancy.atsUrl} target="_blank" rel="noopener" style={{ fontSize: 11, color: "#1e40af" }}>View in {vacancy.atsSystem} →</a>}
+          </div>
+        )}
+        <div style={{ padding: 10, background: vacancy.applicationLinkActive ? "#f0fdf4" : "#f8fafc", borderRadius: 8, border: vacancy.applicationLinkActive ? "1px solid #86efac" : "1px solid var(--border)" }}>
+          <div style={{ fontSize: 11, color: vacancy.applicationLinkActive ? "#166534" : "var(--text-secondary)", fontWeight: 600, marginBottom: 4 }}>
+            Application Tracking Link {vacancy.applicationLinkActive ? "✅ Active" : "⏸ Inactive"}
+          </div>
+          <div style={{ fontSize: 12, fontFamily: "monospace", color: "var(--council-blue)", wordBreak: "break-all" }}>
+            https://{vacancy.applicationLink}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 4 }}>
+            Add this link to your {vacancy.atsSystem !== "None" ? vacancy.atsSystem + " listing and " : ""}careers page. All applications are automatically tracked.
+          </div>
+        </div>
+      </div>
+
       {assignedCandidates.length > 0 && (
         <div>
           <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>Assigned Candidates ({assignedCandidates.length})</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {assignedCandidates.map((c) => (
-              <span key={c.id} className="badge badge-blue">{c.name} — {c.status}</span>
+              <span key={c.id} className="badge badge-blue">{c.name} — {c.status} {c.source === "Direct Application" ? "(via apply link)" : `(${c.source})`}</span>
             ))}
           </div>
         </div>
@@ -243,16 +268,32 @@ function CouncilVacancies() {
   const { vacancies, showToast } = useData();
   const mccVacancies = useMemo(() => vacancies.filter((v) => v.council === "Manchester CC"), [vacancies]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showImport, setShowImport] = useState(false);
+  const [showRequest, setShowRequest] = useState(false);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <ImportVacancyForm open={showImport} onClose={() => setShowImport(false)} council="Manchester CC" />
+      <VacancyRequestForm open={showRequest} onClose={() => setShowRequest(false)} requestedBy="Sunita Patel" requestedByRole="recruitment_team" council="Manchester CC" />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <h2 style={{ fontSize: 24, fontWeight: 700 }}>Our Vacancies</h2>
-        <button className="btn btn-council" onClick={() => showToast("Vacancy request sent to PSP", "success")}><Plus size={16} /> Request New Vacancy</button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn btn-outline" onClick={() => setShowImport(true)}><Download size={16} /> Import from Jobtrain</button>
+          <button className="btn btn-council" onClick={() => setShowRequest(true)}><Plus size={16} /> Create Vacancy</button>
+        </div>
+      </div>
+
+      {/* ATS Sync Status */}
+      <div style={{ padding: 12, background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+          <CheckCircle2 size={16} color="var(--status-green)" />
+          <span><strong>Jobtrain Connected</strong> — {mccVacancies.filter(v => v.atsSystem === "Jobtrain").length} vacancies synced from your ATS</span>
+        </div>
+        <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>Last sync: 15 minutes ago</span>
       </div>
       <div className="table-container">
         <table>
-          <thead><tr><th>Reference</th><th>Role</th><th>Team</th><th>Salary</th><th>Status</th><th>Applicants</th><th>Days Open</th><th></th></tr></thead>
+          <thead><tr><th>Reference</th><th>Role</th><th>Team</th><th>Salary</th><th>Source</th><th>Status</th><th>Applicants</th><th>Days Open</th><th></th></tr></thead>
           <tbody>
             {mccVacancies.map((v) => {
               const isExpanded = expandedId === v.id;
@@ -263,6 +304,7 @@ function CouncilVacancies() {
                     <td style={{ fontWeight: 500 }}>{v.role}</td>
                     <td>{v.team}</td>
                     <td style={{ fontSize: 13 }}>{v.salary}</td>
+                    <td><span className={`badge ${v.importedFrom === "ats_import" ? "badge-blue" : v.importedFrom === "psp_created" ? "badge-green" : "badge-gray"}`}>{v.importedFrom === "ats_import" ? v.atsSystem : v.importedFrom === "psp_created" ? "PSP" : "Manual"}</span></td>
                     <td><span className={`badge ${v.status === "live" ? "badge-green" : v.status === "offer" ? "badge-purple" : v.status === "interviewing" ? "badge-blue" : "badge-amber"}`}>{v.status}</span></td>
                     <td>{v.applicants}</td>
                     <td style={{ fontWeight: 600 }}>{v.daysOpen}d</td>
@@ -270,7 +312,7 @@ function CouncilVacancies() {
                   </tr>
                   {isExpanded && (
                     <tr key={`${v.id}-detail`}>
-                      <td colSpan={8} style={{ background: "#f8fafc", padding: 16 }}>
+                      <td colSpan={9} style={{ background: "#f8fafc", padding: 16 }}>
                         <VacancyDetail vacancy={v} />
                       </td>
                     </tr>
