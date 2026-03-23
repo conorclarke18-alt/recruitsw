@@ -3,9 +3,11 @@ import { useState, useMemo } from "react";
 import {
   UserCheck, Briefcase, Users, Calendar, CheckCircle2,
   AlertTriangle, Clock, Eye, Star, ThumbsUp, ThumbsDown,
-  Shield, Plane, MessageSquare, ChevronRight, FileText
+  Shield, Plane, MessageSquare, ChevronRight, FileText,
+  Mail, Send, Link, Video, X, FileDown
 } from "lucide-react";
 import { useData, Vacancy, Candidate } from "./DataStore";
+import { Modal } from "./Modal";
 
 export default function ManagerView() {
   const [activeTab, setActiveTab] = useState("action");
@@ -270,8 +272,107 @@ function ReviewCandidates({
     return map;
   }, [vacancies]);
 
+  const [inviteCandidate, setInviteCandidate] = useState<Candidate | null>(null);
+
+  const sendInvite = () => {
+    if (!inviteCandidate) return;
+    updateCandidate(inviteCandidate.id, { status: "interviewing" });
+    showToast(`Interview invite sent to ${inviteCandidate.name} — they'll select available slots from your diary`, "success");
+    setInviteCandidate(null);
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Email Preview Modal */}
+      <Modal open={!!inviteCandidate} onClose={() => setInviteCandidate(null)} title="Send Interview Invitation" width={620}>
+        {inviteCandidate && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Email Preview */}
+            <div style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+              <div style={{ background: "#f8fafc", padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ display: "flex", gap: 8, fontSize: 13 }}>
+                  <span style={{ fontWeight: 600, color: "var(--text-secondary)", width: 40 }}>To:</span>
+                  <span>{inviteCandidate.name} &lt;{inviteCandidate.email}&gt;</span>
+                </div>
+                <div style={{ display: "flex", gap: 8, fontSize: 13 }}>
+                  <span style={{ fontWeight: 600, color: "var(--text-secondary)", width: 40 }}>From:</span>
+                  <span>Manchester City Council via RecruitSW &lt;interviews@recruitsw.co.uk&gt;</span>
+                </div>
+                <div style={{ display: "flex", gap: 8, fontSize: 13 }}>
+                  <span style={{ fontWeight: 600, color: "var(--text-secondary)", width: 40 }}>Re:</span>
+                  <span style={{ fontWeight: 600 }}>Interview Invitation — {inviteCandidate.assignedVacancy ? vacancyMap[inviteCandidate.assignedVacancy]?.role : inviteCandidate.role}</span>
+                </div>
+              </div>
+              <div style={{ padding: 20, fontSize: 14, lineHeight: 1.8 }}>
+                <p>Dear {inviteCandidate.name},</p>
+                <p style={{ marginTop: 12 }}>
+                  Thank you for your application for the role of <strong>{inviteCandidate.assignedVacancy ? vacancyMap[inviteCandidate.assignedVacancy]?.role : inviteCandidate.role}</strong> at Manchester City Council.
+                </p>
+                <p style={{ marginTop: 8 }}>
+                  We are pleased to invite you to interview. Please use the link below to <strong>select your available time slots</strong> from the interview panel&apos;s diary:
+                </p>
+
+                {/* Booking Link */}
+                <div style={{ margin: "16px 0", padding: 16, background: "#eff6ff", borderRadius: 10, textAlign: "center" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}>
+                    <Calendar size={20} color="#1e40af" />
+                    <span style={{ fontSize: 16, fontWeight: 700, color: "#1e40af" }}>Select Your Interview Time</span>
+                  </div>
+                  <div style={{ background: "white", padding: "10px 16px", borderRadius: 8, fontFamily: "monospace", fontSize: 13, color: "var(--council-blue)", border: "1px solid #bfdbfe", cursor: "pointer" }}>
+                    https://interview.recruitsw.co.uk/book/mcc-{(inviteCandidate.assignedVacancy || "").toLowerCase()}
+                  </div>
+                  <p style={{ fontSize: 12, color: "#1e40af", marginTop: 8 }}>
+                    Available slots are synced with the panel&apos;s Microsoft 365 calendars
+                  </p>
+                </div>
+
+                <p><strong>Interview details:</strong></p>
+                <ul style={{ paddingLeft: 20, fontSize: 13 }}>
+                  <li><strong>Format:</strong> MS Teams Video Call (link sent on confirmation)</li>
+                  <li><strong>Duration:</strong> 1 hour</li>
+                  <li><strong>Panel:</strong> James Okafor (Service Manager), Rachel Adams (Team Manager)</li>
+                  <li><strong>Preparation:</strong> Please prepare a 10-minute case presentation (anonymised)</li>
+                </ul>
+
+                {inviteCandidate.rtw === "requires_sponsorship" && (
+                  <div style={{ marginTop: 12, padding: 10, background: "#fffbeb", borderRadius: 8, fontSize: 13, color: "#92400e" }}>
+                    <strong>⚠️ Note:</strong> We understand you require visa sponsorship. This will be discussed as part of the interview process. Manchester City Council holds a valid UKVI Sponsor Licence.
+                  </div>
+                )}
+
+                <p style={{ marginTop: 16, fontSize: 13, color: "var(--text-secondary)" }}>
+                  If you have any questions, please reply to this email or contact the recruitment team.
+                </p>
+                <p style={{ marginTop: 8 }}>Best regards,<br /><strong>Manchester City Council Recruitment Team</strong><br /><span style={{ fontSize: 12, color: "var(--text-secondary)" }}>via RecruitSW</span></p>
+              </div>
+            </div>
+
+            {/* Attachments */}
+            <div style={{ display: "flex", gap: 8 }}>
+              <span className="badge badge-gray" style={{ padding: "6px 12px" }}>
+                <FileDown size={12} style={{ marginRight: 4 }} /> {inviteCandidate.cvFileName || "CV.pdf"}
+              </span>
+              <span className="badge badge-gray" style={{ padding: "6px 12px" }}>
+                <FileText size={12} style={{ marginRight: 4 }} /> Interview_Scorecard.pdf
+              </span>
+            </div>
+
+            {/* Calendar sync info */}
+            <div style={{ padding: 12, background: "#f0fdf4", borderRadius: 8, fontSize: 13, color: "#166534" }}>
+              <strong>How it works:</strong> The candidate clicks the booking link and sees time slots when <strong>all panel members</strong> are free (synced from your Microsoft 365 calendars). Once they select slots, you&apos;ll be notified and can confirm the time. A calendar invite with the MS Teams link is sent automatically.
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button className="btn btn-outline" onClick={() => setInviteCandidate(null)}>Cancel</button>
+              <button className="btn" style={{ background: "#7c3aed", color: "white" }} onClick={sendInvite}>
+                <Send size={16} /> Send Interview Invitation
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
       <h2 style={{ fontSize: 24, fontWeight: 700 }}>Review Shortlisted Candidates</h2>
       <p style={{ color: "var(--text-secondary)" }}>PSP has screened and shortlisted these candidates for your vacancies. Review each and decide whether to invite to interview.</p>
 
@@ -317,6 +418,33 @@ function ReviewCandidates({
               {/* Expanded Detail */}
               {isExpanded && (
                 <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+                  {/* CV & Submission Info */}
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    <div style={{ flex: 1, minWidth: 200, padding: 12, background: "#f8fafc", borderRadius: 8, border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 40, height: 40, background: "#7c3aed15", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <FileDown size={20} color="#7c3aed" />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 13 }}>{c.cvFileName || "CV not uploaded"}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>Submitted by {c.submittedBy} on {c.submittedAt}</div>
+                      </div>
+                      {c.cvUploaded && (
+                        <button className="btn btn-outline btn-sm" style={{ marginLeft: "auto" }} onClick={() => showToast(`Opening ${c.cvFileName}...`, "info")}>
+                          <Eye size={14} /> View CV
+                        </button>
+                      )}
+                    </div>
+                    {c.rtw === "requires_sponsorship" && (
+                      <div style={{ padding: 12, background: "#fffbeb", borderRadius: 8, border: "1px solid #fcd34d", display: "flex", alignItems: "center", gap: 8, minWidth: 200 }}>
+                        <Plane size={18} color="var(--status-amber)" />
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 12, color: "#92400e" }}>REQUIRES SPONSORSHIP</div>
+                          <div style={{ fontSize: 11, color: "#92400e" }}>Council must issue CoS</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <div style={{ padding: 12, background: "#f8fafc", borderRadius: 8 }}>
                     <p style={{ fontSize: 14, lineHeight: 1.6 }}>{c.notes}</p>
                     <p style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 8 }}>
@@ -380,16 +508,15 @@ function ReviewCandidates({
                       <button
                         className="btn"
                         style={{ background: "#7c3aed", color: "white" }}
-                        onClick={() => {
-                          updateCandidate(c.id, { status: "interviewing" });
-                          showToast(`${c.name} invited to interview`, "success");
-                        }}
+                        onClick={() => setInviteCandidate(c)}
                       >
                         <ThumbsUp size={16} /> Invite to Interview
                       </button>
                     )}
                     {c.status === "interviewing" && (
-                      <span className="badge badge-blue" style={{ padding: "8px 16px", fontSize: 13 }}>Already invited to interview</span>
+                      <span className="badge badge-blue" style={{ padding: "8px 16px", fontSize: 13 }}>
+                        <Calendar size={12} style={{ marginRight: 4 }} /> Invited — awaiting diary selection
+                      </span>
                     )}
                     <button
                       className="btn btn-outline"
