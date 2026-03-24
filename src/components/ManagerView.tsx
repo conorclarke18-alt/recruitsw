@@ -217,6 +217,7 @@ export default function ManagerView() {
           <ScoringTab
             interviewingCandidates={interviewingCandidates}
             showToast={showToast}
+            updateCandidate={updateCandidate}
           />
         )}
         {activeTab === "request" && (
@@ -888,9 +889,11 @@ function ManagerInterviews({
 function ScoringTab({
   interviewingCandidates,
   showToast,
+  updateCandidate,
 }: {
   interviewingCandidates: Candidate[];
   showToast: (msg: string, type?: "success" | "error" | "info" | "warning") => void;
+  updateCandidate: (id: string, updates: Partial<Candidate>) => void;
 }) {
   const competencies = [
     { name: "Safeguarding Knowledge & Practice", desc: "Understanding of child protection frameworks, s47, PLO, thresholds" },
@@ -960,7 +963,26 @@ function ScoringTab({
       return;
     }
     setSubmitted((prev) => ({ ...prev, [selectedCandidate]: true }));
-    showToast(`Scores submitted for ${candidate?.name || "candidate"}. Panel consensus will be available once all members submit.`, "success");
+    // Save scores to candidate record
+    const scoreData = competencies.map((comp, i) => ({
+      competency: comp.name,
+      score: candidateScores[i] || 0,
+      notes: candidateNotes[i] || "",
+    }));
+    updateCandidate(selectedCandidate, {
+      notes: `${candidate?.notes || ""}\n\n--- Interview Score (James Okafor) ---\nAvg: ${avgScore}/5 | Recommendation: ${candidateRecommendation}\nStrengths: ${candidateStrengths}\nConcerns: ${candidateConcerns}\nScores: ${scoreData.map(s => `${s.competency}: ${s.score}/5`).join(", ")}`,
+      communicationLog: [
+        ...(candidate?.communicationLog || []),
+        {
+          date: new Date().toISOString().split("T")[0],
+          time: new Date().toTimeString().slice(0, 5),
+          type: "system" as const,
+          message: `Interview scored by James Okafor — Average: ${avgScore}/5, Recommendation: ${candidateRecommendation}`,
+          by: "James Okafor (Hiring Manager)",
+        },
+      ],
+    });
+    showToast(`Scores submitted for ${candidate?.name || "candidate"} (${avgScore}/5). Saved to candidate record.`, "success");
   };
 
   const totalScore = Object.values(candidateScores).reduce((a, b) => a + b, 0);
