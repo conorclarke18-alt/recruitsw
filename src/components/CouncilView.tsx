@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useData, Vacancy, Candidate } from "./DataStore";
 import ImportVacancyForm from "./ImportVacancyForm";
+import QuickAddCandidate from "./QuickAddCandidate";
 import VacancyRequestForm from "./VacancyRequestForm";
 
 // Helpers
@@ -367,23 +368,65 @@ function CandidateProfile({ candidate, onClose }: { candidate: Candidate; onClos
 
 /* ─── CANDIDATES TAB ─── */
 function CouncilCandidates() {
-  const { vacancies, candidates, updateCandidate, showToast } = useData();
+  const { vacancies, candidates, updateCandidate, assignCandidate, showToast } = useData();
   const mccVacancyIds = useMemo(() => new Set(vacancies.filter((v) => v.council === "Manchester CC").map((v) => v.id)), [vacancies]);
   const mccCandidates = useMemo(() => candidates.filter((c) => c.assignedVacancy && mccVacancyIds.has(c.assignedVacancy)), [candidates, mccVacancyIds]);
 
   const [expandedProfile, setExpandedProfile] = useState<string | null>(null);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState("all");
+
+  const filtered = sourceFilter === "all" ? mccCandidates
+    : sourceFilter === "psp" ? mccCandidates.filter(c => c.source.includes("PSP") || c.source === "WhatsApp")
+    : sourceFilter === "direct" ? mccCandidates.filter(c => c.source.includes("Direct") || c.source.includes("Council") || c.source.includes("Job Board") || c.source.includes("Email"))
+    : sourceFilter === "agency" ? mccCandidates.filter(c => c.source === "Agency")
+    : mccCandidates;
+
+  const sourceColor = (source: string) => {
+    if (source.includes("PSP") || source === "WhatsApp") return "badge-green";
+    if (source.includes("Direct") || source.includes("Council") || source.includes("Job Board") || source.includes("Email")) return "badge-blue";
+    if (source === "Agency") return "badge-amber";
+    if (source.includes("Internal") || source.includes("Referral")) return "badge-purple";
+    return "badge-gray";
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <h2 style={{ fontSize: 24, fontWeight: 700 }}>Shortlisted Candidates</h2>
-      <p style={{ color: "var(--text-secondary)" }}>These candidates have been screened and shortlisted by PSP for your vacancies.</p>
+      <QuickAddCandidate open={showQuickAdd} onClose={() => setShowQuickAdd(false)} council="Manchester CC" />
 
-      {mccCandidates.length === 0 && (
-        <div className="card" style={{ textAlign: "center", padding: 40, color: "var(--text-secondary)" }}>No candidates currently assigned to Manchester CC vacancies.</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <h2 style={{ fontSize: 24, fontWeight: 700 }}>All Candidates</h2>
+          <p style={{ color: "var(--text-secondary)", marginTop: 4 }}>All candidates for your vacancies — from PSP sourcing, direct applications, and your own channels.</p>
+        </div>
+        <button className="btn btn-council" onClick={() => setShowQuickAdd(true)}><Plus size={16} /> Add Direct Applicant</button>
+      </div>
+
+      {/* Source Filter */}
+      <div className="card" style={{ padding: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>Source:</span>
+          {[
+            { id: "all", label: "All Sources", count: mccCandidates.length },
+            { id: "psp", label: "PSP Sourced", count: mccCandidates.filter(c => c.source.includes("PSP") || c.source === "WhatsApp").length },
+            { id: "direct", label: "Direct / Council Website", count: mccCandidates.filter(c => c.source.includes("Direct") || c.source.includes("Council") || c.source.includes("Job Board") || c.source.includes("Email")).length },
+            { id: "agency", label: "Agency", count: mccCandidates.filter(c => c.source === "Agency").length },
+          ].map(f => (
+            <button key={f.id} onClick={() => setSourceFilter(f.id)} className="btn btn-sm" style={{ background: sourceFilter === f.id ? "var(--council-blue)" : "#f1f5f9", color: sourceFilter === f.id ? "white" : "var(--text-primary)" }}>
+              {f.label} ({f.count})
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {filtered.length === 0 && (
+        <div className="card" style={{ textAlign: "center", padding: 40, color: "var(--text-secondary)" }}>
+          No candidates match this filter. {sourceFilter !== "all" && <button className="btn btn-outline btn-sm" onClick={() => setSourceFilter("all")} style={{ marginLeft: 8 }}>Show All</button>}
+        </div>
       )}
 
       <div style={{ display: "grid", gap: 16 }}>
-        {mccCandidates.map((c) => (
+        {filtered.map((c) => (
           <div key={c.id} className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
               <div style={{ display: "flex", gap: 12 }}>
@@ -402,9 +445,11 @@ function CouncilCandidates() {
                       {rtwLabel(c.rtw)}
                     </span>
                     {c.crossCouncil && <span className="badge badge-purple">Previously applied at another council</span>}
-                    <span className={`badge ${c.status === "interviewing" ? "badge-blue" : c.status === "shortlisted" ? "badge-green" : "badge-amber"}`}>
-                      {c.status}
+                    <span className={`badge ${sourceColor(c.source)}`}>{c.source}</span>
+                    <span className={`badge ${c.status === "interviewing" ? "badge-blue" : c.status === "shortlisted" ? "badge-green" : c.status === "new" ? "badge-gray" : "badge-amber"}`}>
+                      {c.pipelineStage.replace(/_/g, " ")}
                     </span>
+                    {c.cvUploaded && <span style={{ fontSize: 11, color: "var(--status-green)" }}>📄 CV attached</span>}
                   </div>
                 </div>
               </div>
