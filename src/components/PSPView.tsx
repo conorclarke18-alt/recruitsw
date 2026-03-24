@@ -627,7 +627,22 @@ function CandidateDetail({ candidate: initialCandidate, onBack }: { candidate: C
       {/* Status & Assignment */}
       <div className="card">
         <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Pipeline Status & Assignment</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+          <div>
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Pipeline Stage</p>
+            <select
+              value={c.pipelineStage}
+              onChange={(e) => {
+                const stage = e.target.value as Candidate["pipelineStage"];
+                const stageToStatus: Record<string, Candidate["status"]> = { new: "new", screened: "screening", submitted: "screening", under_review: "screening", shortlisted: "shortlisted", interview_scheduled: "interviewing", interviewed: "interviewing", offer: "offered", compliance: "offered", started: "hired", rejected: "rejected", withdrawn: "withdrawn" };
+                updateCandidate(c.id, { pipelineStage: stage, stageEnteredAt: new Date().toISOString(), status: stageToStatus[stage] || c.status, communicationLog: [...c.communicationLog, { date: new Date().toISOString().split("T")[0], time: new Date().toTimeString().slice(0,5), type: "system" as const, message: `Pipeline stage changed to ${stage.replace(/_/g, " ")}`, by: "PSP" }] });
+                showToast(`${c.name} moved to ${stage.replace(/_/g, " ")}`, "success");
+              }}
+              style={{ padding: "6px 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, width: "100%" }}
+            >
+              {["new","screened","submitted","under_review","shortlisted","interview_scheduled","interviewed","offer","compliance","started","rejected","withdrawn"].map(s => <option key={s} value={s}>{s.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</option>)}
+            </select>
+          </div>
           <div>
             <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Current Status</p>
             <select
@@ -967,7 +982,7 @@ function RetentionTab() {
 }
 
 function SettingsTab() {
-  const { showToast } = useData();
+  const { showToast, resetDemoData } = useData();
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <h2 style={{ fontSize: 24, fontWeight: 700 }}>Platform Settings</h2>
@@ -1022,6 +1037,17 @@ function SettingsTab() {
           <strong>GDPR Configuration</strong> — PSP operates as an independent data controller for cross-council matching under Article 6(1)(a) consent.
           Each council is a separate controller for their recruitment data under Article 6(1)(e) public task.
           Data Processing Agreements in place with all active councils. DPIA completed and reviewed annually.
+        </div>
+      </div>
+
+      {/* Demo Controls */}
+      <div className="card" style={{ borderLeft: "4px solid var(--status-amber)" }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Demo Controls</h3>
+        <p style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 12 }}>
+          Data is saved to your browser automatically. Use Reset to restore the original demo data.
+        </p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn btn-outline" onClick={resetDemoData}><RefreshCw size={16} /> Reset Demo Data</button>
         </div>
       </div>
     </div>

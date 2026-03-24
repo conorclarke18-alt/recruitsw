@@ -161,6 +161,7 @@ interface DataContextType {
   convertRequestToVacancy: (requestId: string) => void;
   showToast: (message: string, type?: Toast["type"]) => void;
   dismissToast: (id: string) => void;
+  resetDemoData: () => void;
 }
 
 const DataContext = createContext<DataContextType | null>(null);
@@ -300,11 +301,49 @@ let nextVacancyNum = 7;
 let nextCandidateNum = 8;
 let nextRequestNum = 4;
 
+// localStorage helpers
+function loadFromStorage<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const stored = localStorage.getItem(`recruitsw_${key}`);
+    if (stored) return JSON.parse(stored);
+  } catch { /* ignore */ }
+  return fallback;
+}
+
+function saveToStorage<T>(key: string, data: T) {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem(`recruitsw_${key}`, JSON.stringify(data)); } catch { /* ignore */ }
+}
+
 export function DataProvider({ children }: { children: ReactNode }) {
-  const [vacancies, setVacancies] = useState<Vacancy[]>(defaultVacancies);
-  const [candidates, setCandidates] = useState<Candidate[]>(defaultCandidates);
-  const [vacancyRequests, setVacancyRequests] = useState<VacancyRequest[]>(defaultVacancyRequests);
+  const [vacancies, setVacanciesRaw] = useState<Vacancy[]>(() => loadFromStorage("vacancies", defaultVacancies));
+  const [candidates, setCandidatesRaw] = useState<Candidate[]>(() => loadFromStorage("candidates", defaultCandidates));
+  const [vacancyRequests, setVacancyRequestsRaw] = useState<VacancyRequest[]>(() => loadFromStorage("requests", defaultVacancyRequests));
   const [toasts, setToasts] = useState<Toast[]>([]);
+
+  // Wrap setters to auto-persist
+  const setVacancies: typeof setVacanciesRaw = useCallback((action) => {
+    setVacanciesRaw((prev) => {
+      const next = typeof action === "function" ? action(prev) : action;
+      saveToStorage("vacancies", next);
+      return next;
+    });
+  }, []);
+  const setCandidates: typeof setCandidatesRaw = useCallback((action) => {
+    setCandidatesRaw((prev) => {
+      const next = typeof action === "function" ? action(prev) : action;
+      saveToStorage("candidates", next);
+      return next;
+    });
+  }, []);
+  const setVacancyRequests: typeof setVacancyRequestsRaw = useCallback((action) => {
+    setVacancyRequestsRaw((prev) => {
+      const next = typeof action === "function" ? action(prev) : action;
+      saveToStorage("requests", next);
+      return next;
+    });
+  }, []);
 
   const showToast = useCallback((message: string, type: Toast["type"] = "success") => {
     const id = Date.now().toString();
@@ -468,8 +507,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
     });
   }, [showToast]);
 
+  const resetDemoData = useCallback(() => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("recruitsw_vacancies");
+      localStorage.removeItem("recruitsw_candidates");
+      localStorage.removeItem("recruitsw_requests");
+    }
+    setVacancies(defaultVacancies);
+    setCandidates(defaultCandidates);
+    setVacancyRequests(defaultVacancyRequests);
+    showToast("Demo data reset to defaults", "info");
+  }, [setVacancies, setCandidates, setVacancyRequests, showToast]);
+
   return (
-    <DataContext.Provider value={{ vacancies, candidates, toasts, addVacancy, updateVacancy, deleteVacancy, addCandidate, updateCandidate, deleteCandidate, assignCandidate, vacancyRequests, addVacancyRequest, approveVacancyRequest, rejectVacancyRequest, convertRequestToVacancy, showToast, dismissToast }}>
+    <DataContext.Provider value={{ vacancies, candidates, toasts, addVacancy, updateVacancy, deleteVacancy, addCandidate, updateCandidate, deleteCandidate, assignCandidate, vacancyRequests, addVacancyRequest, approveVacancyRequest, rejectVacancyRequest, convertRequestToVacancy, showToast, dismissToast, resetDemoData }}>
       {children}
       {/* Toast notifications */}
       <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999, display: "flex", flexDirection: "column", gap: 8 }}>
