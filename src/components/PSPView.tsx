@@ -3,6 +3,8 @@ import { useState, useMemo } from "react";
 import { useData, Candidate, Vacancy, VisaType, RTWStatus as RTWStatusType, CompStatus } from "./DataStore";
 import CreateVacancyForm from "./CreateVacancyForm";
 import AddCandidateForm from "./AddCandidateForm";
+import EditVacancyForm, { SalaryBenchmark } from "./EditVacancyForm";
+import EmailPreview, { EmailType } from "./EmailPreview";
 import {
   Shield, BarChart3, Users, Briefcase, FileCheck, Clock, AlertTriangle,
   ChevronRight, Search, Filter, Plus, Upload, Send, Eye, CheckCircle2,
@@ -409,16 +411,25 @@ function VacanciesTab({ onCreateVacancy }: { onCreateVacancy: () => void }) {
 function VacancyDetail({ vacancy: v }: { vacancy: Vacancy }) {
   const { candidates, updateVacancy, deleteVacancy, showToast } = useData();
   const assignedCandidates = candidates.filter(c => c.assignedVacancy === v.id);
+  const [showEdit, setShowEdit] = useState(false);
+  const [showEmail, setShowEmail] = useState(false);
+  const [emailType, setEmailType] = useState<EmailType>("application_received");
+
+  const salaryParts = v.salary.replace(/[£,]/g, "").split(" - ");
+  const salMin = Number(salaryParts[0]) || 0;
+  const salMax = Number(salaryParts[1]) || 0;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <EditVacancyForm open={showEdit} onClose={() => setShowEdit(false)} vacancy={v} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
           <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{v.role}</h3>
           <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>{v.council} &middot; {v.team} &middot; {v.grade}</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn-outline btn-sm" onClick={() => deleteVacancy(v.id)}>Delete</button>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowEdit(true)}>Edit Vacancy</button>
+          <button className="btn btn-outline btn-sm" style={{ color: "var(--status-red)" }} onClick={() => deleteVacancy(v.id)}>Delete</button>
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
@@ -449,17 +460,53 @@ function VacancyDetail({ vacancy: v }: { vacancy: Vacancy }) {
           <p style={{ fontSize: 13 }}>{v.desirable}</p>
         </div>
       )}
+      {/* Salary Benchmark */}
+      {salMin > 0 && salMax > 0 && <SalaryBenchmark role={v.role} salaryMin={salMin} salaryMax={salMax} />}
+
+      {/* Sponsorship */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: 10, background: v.acceptsSponsorship ? "#fffbeb" : "#f0fdf4", borderRadius: 8, fontSize: 13 }}>
+        <Plane size={16} color={v.acceptsSponsorship ? "var(--status-amber)" : "var(--status-green)"} />
+        <span>{v.acceptsSponsorship ? "Accepts visa sponsorship candidates" : "UK right to work only — no sponsorship"}</span>
+        {v.acceptsSponsorship && v.sponsorLicenceHeld && <span className="badge badge-green" style={{ marginLeft: 8 }}>Sponsor Licence: Active</span>}
+        {v.acceptsSponsorship && !v.sponsorLicenceHeld && <span className="badge badge-amber" style={{ marginLeft: 8 }}>Sponsor Licence: Not confirmed</span>}
+      </div>
+
+      {/* Team Info */}
+      {(v.caseloadInfo || v.teamSize || v.supervisionFreq) && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+          {v.caseloadInfo && <div style={{ padding: 10, background: "#f8fafc", borderRadius: 8 }}><p style={{ fontSize: 11, color: "var(--text-secondary)" }}>Caseload</p><p style={{ fontSize: 13, fontWeight: 600 }}>{v.caseloadInfo}</p></div>}
+          {v.teamSize && <div style={{ padding: 10, background: "#f8fafc", borderRadius: 8 }}><p style={{ fontSize: 11, color: "var(--text-secondary)" }}>Team</p><p style={{ fontSize: 13, fontWeight: 600 }}>{v.teamSize}</p></div>}
+          {v.supervisionFreq && <div style={{ padding: 10, background: "#f8fafc", borderRadius: 8 }}><p style={{ fontSize: 11, color: "var(--text-secondary)" }}>Supervision</p><p style={{ fontSize: 13, fontWeight: 600 }}>{v.supervisionFreq}</p></div>}
+        </div>
+      )}
+
+      {/* Application Link */}
+      {v.applicationLink && (
+        <div style={{ padding: 10, background: "#eff6ff", borderRadius: 8, fontSize: 13, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <span style={{ fontWeight: 600 }}>Application Link: </span>
+            <span style={{ color: "var(--council-blue)" }}>{v.applicationLink}</span>
+            <span className={`badge ${v.applicationLinkActive ? "badge-green" : "badge-gray"}`} style={{ marginLeft: 8 }}>{v.applicationLinkActive ? "Active" : "Inactive"}</span>
+          </div>
+          <button className="btn btn-outline btn-sm" onClick={() => showToast("Link copied to clipboard", "success")}>Copy Link</button>
+        </div>
+      )}
+
+      {/* Assigned Candidates */}
       {assignedCandidates.length > 0 && (
         <div>
           <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 8 }}>Assigned Candidates ({assignedCandidates.length})</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {assignedCandidates.map(c => (
-              <span key={c.id} className="badge badge-blue" style={{ padding: "4px 10px" }}>
-                {c.name} &middot; {c.match}% match
+              <span key={c.id} className={`badge ${c.rtw === "requires_sponsorship" ? "badge-amber" : "badge-blue"}`} style={{ padding: "4px 10px" }}>
+                {c.name} &middot; {c.match}% match {c.rtw === "requires_sponsorship" && "⚠️ Sponsorship"}
               </span>
             ))}
           </div>
         </div>
+      )}
+      {assignedCandidates.length === 0 && v.status === "live" && (
+        <p style={{ fontSize: 13, color: "var(--text-secondary)", fontStyle: "italic" }}>No candidates assigned yet. Add candidates from the Candidates tab.</p>
       )}
     </div>
   );
@@ -567,7 +614,12 @@ function CandidatesTab({ onSelectCandidate, onAddCandidate }: { onSelectCandidat
                     {c.match}%
                   </span>
                 </td>
-                <td><span className={`badge ${statusBadgeClass(c.status)}`}>{c.status}</span></td>
+                <td>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    <span className={`badge ${statusBadgeClass(c.pipelineStage)}`} style={{ fontSize: 10 }}>{c.pipelineStage.replace(/_/g, " ")}</span>
+                    {c.cvUploaded && <span style={{ fontSize: 10, color: "var(--status-green)" }}>📄 CV</span>}
+                  </div>
+                </td>
                 <td><span className="badge badge-gray">{c.source}</span></td>
                 <td><Eye size={16} color="var(--text-secondary)" /></td>
               </tr>
@@ -584,8 +636,11 @@ function CandidatesTab({ onSelectCandidate, onAddCandidate }: { onSelectCandidat
 
 function CandidateDetail({ candidate: initialCandidate, onBack }: { candidate: Candidate; onBack: () => void }) {
   const { candidates, vacancies, updateCandidate, deleteCandidate, assignCandidate, showToast } = useData();
+  const [showEmailPreview, setShowEmailPreview] = useState(false);
+  const [emailType, setEmailType] = useState<EmailType>("application_received");
   // Always get the latest version of this candidate from state
   const c = candidates.find(cand => cand.id === initialCandidate.id) || initialCandidate;
+  const assignedVac = c.assignedVacancy ? vacancies.find(v => v.id === c.assignedVacancy) : null;
   const assignedVacancy = c.assignedVacancy ? vacancies.find(v => v.id === c.assignedVacancy) : null;
 
   const handleStatusChange = (newStatus: Candidate["status"]) => {
@@ -619,8 +674,39 @@ function CandidateDetail({ candidate: initialCandidate, onBack }: { candidate: C
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button className="btn btn-outline" onClick={() => showToast(`Calling ${c.name} at ${c.phone}...`, "info")}><Phone size={16} /> Call</button>
-          <button className="btn btn-outline" onClick={() => showToast(`Opening email to ${c.email}...`, "info")}><Mail size={16} /> Email</button>
-          <button className="btn btn-primary" onClick={() => showToast(`Submitting ${c.name} to council...`, "success")}><Send size={16} /> Submit to Council</button>
+          <button className="btn btn-outline" onClick={() => { setEmailType("interview_invite"); setShowEmailPreview(true); }}><Mail size={16} /> Send Email</button>
+          <button className="btn btn-primary" onClick={() => {
+            if (!c.assignedVacancy) { showToast("Assign candidate to a vacancy first", "warning"); return; }
+            updateCandidate(c.id, { pipelineStage: "submitted", stageEnteredAt: new Date().toISOString(), communicationLog: [...c.communicationLog, { date: new Date().toISOString().split("T")[0], time: new Date().toTimeString().slice(0,5), type: "system" as const, message: `CV submitted to ${assignedVac?.council || "council"} for ${assignedVac?.role || "vacancy"}`, by: "PSP" }] });
+            showToast(`${c.name} submitted to ${assignedVac?.council || "council"}`, "success");
+          }}><Send size={16} /> Submit to Council</button>
+        </div>
+      </div>
+
+      {/* Email Preview */}
+      <EmailPreview
+        open={showEmailPreview}
+        onClose={() => setShowEmailPreview(false)}
+        type={emailType}
+        data={{ name: c.name, email: c.email, role: assignedVac?.role || c.role, council: assignedVac?.council || "Manchester CC", ref: c.id, swe: c.swe, grade: assignedVac?.grade || "", salary: assignedVac?.salary || "", needsSponsorship: c.rtw === "requires_sponsorship" ? "true" : "false", manager: assignedVac?.manager || "" }}
+      />
+
+      {/* Quick Email Actions */}
+      <div className="card" style={{ padding: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <Mail size={16} color="var(--text-secondary)" />
+          <span style={{ fontSize: 13, fontWeight: 600 }}>Send:</span>
+          {([
+            ["application_received", "Application Received"],
+            ["shortlisted", "Shortlisted"],
+            ["interview_invite", "Interview Invite"],
+            ["offer", "Offer Letter"],
+            ["compliance_request", "Compliance Checklist"],
+            ["reference_request", "Reference Request"],
+            ["rejection", "Rejection"],
+          ] as [EmailType, string][]).map(([type, label]) => (
+            <button key={type} className="btn btn-outline btn-sm" onClick={() => { setEmailType(type); setShowEmailPreview(true); }}>{label}</button>
+          ))}
         </div>
       </div>
 
