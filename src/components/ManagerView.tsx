@@ -4,16 +4,123 @@ import {
   UserCheck, Briefcase, Users, Calendar, CheckCircle2,
   AlertTriangle, Clock, Eye, Star, ThumbsUp, ThumbsDown,
   Shield, Plane, MessageSquare, ChevronRight, FileText,
-  Mail, Send, Link, Video, X, FileDown
+  Mail, Send, Link, Video, X, FileDown, Paperclip,
+  PlusCircle, Heart, TrendingDown, Building2, ClipboardList
 } from "lucide-react";
 import { useData, Vacancy, Candidate } from "./DataStore";
-import { Modal } from "./Modal";
+import { Modal, FormField, inputStyle, selectStyle, textareaStyle } from "./Modal";
+
+/* ─── Demo motivation / counter-offer data ─────────────────────── */
+
+interface CandidateMotivation {
+  whyLeaving: string;
+  warmStatus: "active" | "open" | "passive";
+  counterOfferRisk: "low" | "medium" | "high";
+  counterOfferDetail: string;
+}
+
+const candidateMotivations: Record<string, CandidateMotivation> = {
+  "C-001": {
+    whyLeaving: "Seeking career progression — wants more complex court work. Currently limited to CIN cases.",
+    warmStatus: "active",
+    counterOfferRisk: "medium",
+    counterOfferDetail: "4 years at Liverpool CC",
+  },
+  "C-003": {
+    whyLeaving: "Workload — current caseload of 26 with no admin support. Wants better work-life balance.",
+    warmStatus: "active",
+    counterOfferRisk: "low",
+    counterOfferDetail: "Only 1 year at current council, wants to leave",
+  },
+  "C-005": {
+    whyLeaving: "Relocation — partner moving to Manchester area. Happy in current role but needs to move.",
+    warmStatus: "open",
+    counterOfferRisk: "low",
+    counterOfferDetail: "Relocating — counter-offer won't solve geography",
+  },
+  "C-004": {
+    whyLeaving: "NQ seeking ASYE placement. Wants a council with strong ASYE support programme.",
+    warmStatus: "active",
+    counterOfferRisk: "low",
+    counterOfferDetail: "NQ — no counter-offer risk",
+  },
+};
+
+/* ─── Demo vacancy enrichment data ─────────────────────────────── */
+
+interface VacancyExtra {
+  caseload: string;
+  teamComposition: string;
+  supervision: string;
+}
+
+const vacancyExtras: Record<string, VacancyExtra> = {
+  "V-2024-001": {
+    caseload: "15-18 cases",
+    teamComposition: "6 SWs + 1 TM + 2 family support workers",
+    supervision: "Monthly formal, weekly informal, group supervision fortnightly",
+  },
+  "V-2024-003": {
+    caseload: "12-15 cases (ASYE protected)",
+    teamComposition: "8 SWs + 2 TMs + 1 practice educator + 3 family support workers",
+    supervision: "Weekly formal (ASYE), fortnightly group supervision, dedicated ASYE support",
+  },
+};
+
+/* ─── Demo PSP messages ────────────────────────────────────────── */
+
+interface PspMessage {
+  from: "manager" | "psp";
+  text: string;
+  time: string;
+}
+
+const demoPspMessages: Record<string, PspMessage[]> = {
+  "C-001": [
+    { from: "manager", text: "Can you check if Sarah has LAC experience?", time: "Yesterday, 2:15 PM" },
+    { from: "psp", text: "Yes, confirmed 2 years LAC at Liverpool CC — Conor, PSP", time: "Yesterday, 3:42 PM" },
+  ],
+};
+
+/* ─── Helper components ────────────────────────────────────────── */
+
+function WarmStatusBadge({ status }: { status: "active" | "open" | "passive" }) {
+  const colors = {
+    active: { bg: "#dcfce7", text: "#166534", border: "#86efac" },
+    open: { bg: "#dbeafe", text: "#1e40af", border: "#93c5fd" },
+    passive: { bg: "#fef3c7", text: "#92400e", border: "#fcd34d" },
+  };
+  const c = colors[status];
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: c.bg, color: c.text, border: `1px solid ${c.border}` }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: c.text }} />
+      {status.charAt(0).toUpperCase() + status.slice(1)}
+    </span>
+  );
+}
+
+function CounterOfferBadge({ risk, detail }: { risk: "low" | "medium" | "high"; detail: string }) {
+  const colors = {
+    low: { bg: "#dcfce7", text: "#166534", border: "#86efac" },
+    medium: { bg: "#fef3c7", text: "#92400e", border: "#fcd34d" },
+    high: { bg: "#fecaca", text: "#991b1b", border: "#fca5a5" },
+  };
+  const c = colors[risk];
+  return (
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: c.bg, color: c.text, border: `1px solid ${c.border}` }} title={detail}>
+      <TrendingDown size={12} />
+      Counter-offer risk: {risk.charAt(0).toUpperCase() + risk.slice(1)}
+    </div>
+  );
+}
+
+/* ─── Main component ───────────────────────────────────────────── */
 
 export default function ManagerView() {
   const [activeTab, setActiveTab] = useState("action");
   const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null);
 
-  const { vacancies, candidates, updateCandidate, showToast } = useData();
+  const { vacancies, candidates, updateCandidate, addVacancyRequest, showToast } = useData();
 
   const myVacancies = useMemo(
     () => vacancies.filter((v) => v.manager === "James Okafor"),
@@ -46,6 +153,7 @@ export default function ManagerView() {
     { id: "candidates", label: "Review Candidates", icon: <Users size={16} /> },
     { id: "interviews", label: "My Interviews", icon: <Calendar size={16} /> },
     { id: "scoring", label: "Score Interviews", icon: <Star size={16} /> },
+    { id: "request", label: "Request Vacancy", icon: <PlusCircle size={16} /> },
   ];
 
   return (
@@ -84,6 +192,7 @@ export default function ManagerView() {
         {activeTab === "vacancies" && (
           <ManagerVacancies
             myVacancies={myVacancies}
+            myCandidates={myCandidates}
             setActiveTab={setActiveTab}
             showToast={showToast}
           />
@@ -107,6 +216,12 @@ export default function ManagerView() {
         {activeTab === "scoring" && (
           <ScoringTab
             interviewingCandidates={interviewingCandidates}
+            showToast={showToast}
+          />
+        )}
+        {activeTab === "request" && (
+          <VacancyRequestTab
+            addVacancyRequest={addVacancyRequest}
             showToast={showToast}
           />
         )}
@@ -148,7 +263,7 @@ function ActionTab({
       onClick: () => setActiveTab("scoring"),
     },
     {
-      text: `ASYE vacancy has candidates — schedule interviews when ready.`,
+      text: "ASYE vacancy has candidates — schedule interviews when ready.",
       action: "View",
       urgent: false,
       onClick: () => setActiveTab("vacancies"),
@@ -209,41 +324,92 @@ function ActionTab({
 
 function ManagerVacancies({
   myVacancies,
+  myCandidates,
   setActiveTab,
   showToast,
 }: {
   myVacancies: Vacancy[];
+  myCandidates: Candidate[];
   setActiveTab: (tab: string) => void;
   showToast: (msg: string, type?: "success" | "error" | "info" | "warning") => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <h2 style={{ fontSize: 24, fontWeight: 700 }}>My Vacancies</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+        <h2 style={{ fontSize: 24, fontWeight: 700 }}>My Vacancies</h2>
+        <button className="btn" style={{ background: "#7c3aed", color: "white" }} onClick={() => setActiveTab("request")}>
+          <PlusCircle size={16} /> Request New Vacancy
+        </button>
+      </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {myVacancies.map((v) => (
-          <div key={v.id} className="card">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-              <div>
-                <h3 style={{ fontSize: 18, fontWeight: 700 }}>{v.role}</h3>
-                <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>{v.id} &middot; {v.salary}</p>
+        {myVacancies.map((v) => {
+          const extra = vacancyExtras[v.id];
+          const assignedCandidates = myCandidates.filter((c) => c.assignedVacancy === v.id);
+          return (
+            <div key={v.id} className="card">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+                <div>
+                  <h3 style={{ fontSize: 18, fontWeight: 700 }}>{v.role}</h3>
+                  <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>{v.id} &middot; {v.salary}</p>
+                </div>
+                <span className={`badge ${v.status === "live" ? "badge-green" : v.status === "interviewing" ? "badge-blue" : "badge-amber"}`}>{v.status}</span>
               </div>
-              <span className={`badge ${v.status === "live" ? "badge-green" : v.status === "interviewing" ? "badge-blue" : "badge-amber"}`}>{v.status}</span>
+
+              <div style={{ display: "flex", gap: 24, marginTop: 12, fontSize: 14 }}>
+                <span><strong>{v.shortlisted}</strong> shortlisted</span>
+                <span><strong>{v.applicants}</strong> applicants</span>
+                <span><strong>{v.daysOpen}</strong> days open</span>
+              </div>
+
+              {/* Caseload / Team Info */}
+              {extra && (
+                <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 8 }}>
+                  <div style={{ padding: 10, background: "#f3e8ff", borderRadius: 8, fontSize: 12 }}>
+                    <div style={{ fontWeight: 700, color: "#6b21a8", marginBottom: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                      <ClipboardList size={12} /> Caseload
+                    </div>
+                    <span style={{ color: "#4c1d95" }}>{extra.caseload}</span>
+                  </div>
+                  <div style={{ padding: 10, background: "#f3e8ff", borderRadius: 8, fontSize: 12 }}>
+                    <div style={{ fontWeight: 700, color: "#6b21a8", marginBottom: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                      <Users size={12} /> Team
+                    </div>
+                    <span style={{ color: "#4c1d95" }}>{extra.teamComposition}</span>
+                  </div>
+                  <div style={{ padding: 10, background: "#f3e8ff", borderRadius: 8, fontSize: 12 }}>
+                    <div style={{ fontWeight: 700, color: "#6b21a8", marginBottom: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                      <Shield size={12} /> Supervision
+                    </div>
+                    <span style={{ color: "#4c1d95" }}>{extra.supervision}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Assigned candidates summary */}
+              {assignedCandidates.length > 0 && (
+                <div style={{ marginTop: 12, padding: 10, background: "#f8fafc", borderRadius: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 6 }}>Candidates assigned:</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {assignedCandidates.map((c) => (
+                      <span key={c.id} className={`badge ${c.status === "shortlisted" ? "badge-green" : c.status === "interviewing" ? "badge-blue" : "badge-amber"}`}>
+                        {c.name} ({c.status})
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                <button className="btn btn-outline btn-sm" onClick={() => setActiveTab("candidates")}>
+                  <Users size={14} /> View Candidates
+                </button>
+                <button className="btn btn-outline btn-sm" onClick={() => showToast(`Schedule interviews for ${v.role} — contact PSP to coordinate panel availability.`, "info")}>
+                  <Calendar size={14} /> Schedule Interviews
+                </button>
+              </div>
             </div>
-            <div style={{ display: "flex", gap: 24, marginTop: 12, fontSize: 14 }}>
-              <span><strong>{v.shortlisted}</strong> shortlisted</span>
-              <span><strong>{v.applicants}</strong> applicants</span>
-              <span><strong>{v.daysOpen}</strong> days open</span>
-            </div>
-            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-              <button className="btn btn-outline btn-sm" onClick={() => setActiveTab("candidates")}>
-                <Users size={14} /> View Candidates
-              </button>
-              <button className="btn btn-outline btn-sm" onClick={() => showToast(`Schedule interviews for ${v.role} — contact PSP to coordinate panel availability.`, "info")}>
-                <Calendar size={14} /> Schedule Interviews
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -273,6 +439,8 @@ function ReviewCandidates({
   }, [vacancies]);
 
   const [inviteCandidate, setInviteCandidate] = useState<Candidate | null>(null);
+  const [askPspCandidate, setAskPspCandidate] = useState<string | null>(null);
+  const [pspQuestion, setPspQuestion] = useState("");
 
   const sendInvite = () => {
     if (!inviteCandidate) return;
@@ -281,13 +449,19 @@ function ReviewCandidates({
     setInviteCandidate(null);
   };
 
+  const sendPspQuestion = (candidateId: string, candidateName: string) => {
+    if (!pspQuestion.trim()) return;
+    showToast(`Question sent to PSP about ${candidateName}. They will respond within 4 working hours.`, "info");
+    setPspQuestion("");
+    setAskPspCandidate(null);
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Email Preview Modal */}
       <Modal open={!!inviteCandidate} onClose={() => setInviteCandidate(null)} title="Send Interview Invitation" width={620}>
         {inviteCandidate && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {/* Email Preview */}
             <div style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
               <div style={{ background: "#f8fafc", padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 4 }}>
                 <div style={{ display: "flex", gap: 8, fontSize: 13 }}>
@@ -312,7 +486,6 @@ function ReviewCandidates({
                   We are pleased to invite you to interview. Please use the link below to <strong>select your available time slots</strong> from the interview panel&apos;s diary:
                 </p>
 
-                {/* Booking Link */}
                 <div style={{ margin: "16px 0", padding: 16, background: "#eff6ff", borderRadius: 10, textAlign: "center" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}>
                     <Calendar size={20} color="#1e40af" />
@@ -336,7 +509,7 @@ function ReviewCandidates({
 
                 {inviteCandidate.rtw === "requires_sponsorship" && (
                   <div style={{ marginTop: 12, padding: 10, background: "#fffbeb", borderRadius: 8, fontSize: 13, color: "#92400e" }}>
-                    <strong>⚠️ Note:</strong> We understand you require visa sponsorship. This will be discussed as part of the interview process. Manchester City Council holds a valid UKVI Sponsor Licence.
+                    <strong>Note:</strong> We understand you require visa sponsorship. This will be discussed as part of the interview process. Manchester City Council holds a valid UKVI Sponsor Licence.
                   </div>
                 )}
 
@@ -347,7 +520,6 @@ function ReviewCandidates({
               </div>
             </div>
 
-            {/* Attachments */}
             <div style={{ display: "flex", gap: 8 }}>
               <span className="badge badge-gray" style={{ padding: "6px 12px" }}>
                 <FileDown size={12} style={{ marginRight: 4 }} /> {inviteCandidate.cvFileName || "CV.pdf"}
@@ -357,12 +529,10 @@ function ReviewCandidates({
               </span>
             </div>
 
-            {/* Calendar sync info */}
             <div style={{ padding: 12, background: "#f0fdf4", borderRadius: 8, fontSize: 13, color: "#166534" }}>
               <strong>How it works:</strong> The candidate clicks the booking link and sees time slots when <strong>all panel members</strong> are free (synced from your Microsoft 365 calendars). Once they select slots, you&apos;ll be notified and can confirm the time. A calendar invite with the MS Teams link is sent automatically.
             </div>
 
-            {/* Actions */}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <button className="btn btn-outline" onClick={() => setInviteCandidate(null)}>Cancel</button>
               <button className="btn" style={{ background: "#7c3aed", color: "white" }} onClick={sendInvite}>
@@ -387,6 +557,8 @@ function ReviewCandidates({
         {candidates.map((c) => {
           const vacancy = c.assignedVacancy ? vacancyMap[c.assignedVacancy] : null;
           const isExpanded = expandedCandidate === c.id;
+          const motivation = candidateMotivations[c.id];
+          const existingMessages = demoPspMessages[c.id] || [];
 
           return (
             <div key={c.id} className="card" style={{ borderLeft: `4px solid ${c.match >= 90 ? "var(--status-green)" : c.match >= 85 ? "var(--status-blue)" : "var(--status-amber)"}` }}>
@@ -396,7 +568,7 @@ function ReviewCandidates({
                 onClick={() => setExpandedCandidate(isExpanded ? null : c.id)}
               >
                 <div style={{ display: "flex", gap: 12 }}>
-                  <div style={{ width: 48, height: 48, borderRadius: "50%", background: "#7c3aed", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>
+                  <div style={{ width: 48, height: 48, borderRadius: "50%", background: "#7c3aed", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, flexShrink: 0 }}>
                     {c.name.split(" ").map((n) => n[0]).join("")}
                   </div>
                   <div>
@@ -409,6 +581,28 @@ function ReviewCandidates({
                       <span className={`badge ${c.match >= 90 ? "badge-green" : c.match >= 80 ? "badge-blue" : "badge-amber"}`}>Match: {c.match}%</span>
                       <span className={`badge ${c.rtw === "verified" ? "badge-green" : "badge-amber"}`}>{c.visaDetails.split(" — ")[0]}</span>
                       <span className={`badge ${c.status === "interviewing" ? "badge-blue" : c.status === "shortlisted" ? "badge-green" : "badge-amber"}`}>{c.status}</span>
+                      {motivation && <WarmStatusBadge status={motivation.warmStatus} />}
+                    </div>
+
+                    {/* Motivation - always visible */}
+                    {motivation && (
+                      <div style={{ marginTop: 8, padding: "6px 10px", background: "#faf5ff", borderRadius: 6, border: "1px solid #e9d5ff", fontSize: 12 }}>
+                        <span style={{ fontWeight: 700, color: "#6b21a8" }}>Why they&apos;re leaving: </span>
+                        <span style={{ color: "#581c87" }}>{motivation.whyLeaving}</span>
+                      </div>
+                    )}
+
+                    {/* Counter-offer risk + CV link - always visible */}
+                    <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap", alignItems: "center" }}>
+                      {motivation && <CounterOfferBadge risk={motivation.counterOfferRisk} detail={motivation.counterOfferDetail} />}
+                      {c.cvUploaded && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); showToast(`Opening ${c.cvFileName}...`, "info"); }}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: "#f8fafc", color: "#7c3aed", border: "1px solid #e9d5ff", cursor: "pointer" }}
+                        >
+                          <Paperclip size={12} /> {c.cvFileName}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -502,8 +696,50 @@ function ReviewCandidates({
                     </div>
                   )}
 
+                  {/* Ask PSP section */}
+                  {askPspCandidate === c.id ? (
+                    <div style={{ padding: 16, background: "#faf5ff", borderRadius: 10, border: "1px solid #e9d5ff" }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: "#6b21a8", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                        <MessageSquare size={16} /> Ask PSP about {c.name}
+                      </div>
+                      {/* Existing messages */}
+                      {existingMessages.length > 0 && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+                          {existingMessages.map((msg, mi) => (
+                            <div key={mi} style={{ padding: 10, borderRadius: 8, background: msg.from === "manager" ? "#ede9fe" : "white", border: "1px solid #e9d5ff", fontSize: 13 }}>
+                              <div style={{ fontWeight: 700, fontSize: 11, color: msg.from === "manager" ? "#6b21a8" : "#166534", marginBottom: 2 }}>
+                                {msg.from === "manager" ? "You" : "PSP (Conor)"} &middot; {msg.time}
+                              </div>
+                              {msg.text}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input
+                          type="text"
+                          value={pspQuestion}
+                          onChange={(e) => setPspQuestion(e.target.value)}
+                          placeholder="Type your question about this candidate..."
+                          style={{ flex: 1, padding: "10px 12px", border: "1px solid #d8b4fe", borderRadius: 8, fontSize: 13, outline: "none" }}
+                          onKeyDown={(e) => { if (e.key === "Enter") sendPspQuestion(c.id, c.name); }}
+                        />
+                        <button
+                          className="btn"
+                          style={{ background: "#7c3aed", color: "white" }}
+                          onClick={() => sendPspQuestion(c.id, c.name)}
+                        >
+                          <Send size={14} /> Send to PSP
+                        </button>
+                        <button className="btn btn-outline" onClick={() => { setAskPspCandidate(null); setPspQuestion(""); }}>
+                          <X size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
                   {/* Decision Buttons */}
-                  <div style={{ display: "flex", gap: 8, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+                  <div style={{ display: "flex", gap: 8, paddingTop: 8, borderTop: "1px solid var(--border)", flexWrap: "wrap" }}>
                     {c.status !== "interviewing" && (
                       <button
                         className="btn"
@@ -529,9 +765,9 @@ function ReviewCandidates({
                     </button>
                     <button
                       className="btn btn-outline"
-                      onClick={() => showToast("Your question has been sent to PSP. They will respond within 4 working hours.", "info")}
+                      onClick={() => setAskPspCandidate(askPspCandidate === c.id ? null : c.id)}
                     >
-                      <MessageSquare size={16} /> Ask PSP a Question
+                      <MessageSquare size={16} /> Ask PSP
                     </button>
                   </div>
                 </div>
@@ -573,37 +809,57 @@ function ManagerInterviews({
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {interviewingCandidates.map((c) => (
-          <div key={c.id} className="card" style={{ borderLeft: "4px solid #7c3aed" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-              <div>
-                <span className="badge badge-purple" style={{ marginBottom: 8 }}>Upcoming</span>
-                <h3 style={{ fontSize: 18, fontWeight: 700 }}>{c.name} — {c.role} Interview</h3>
-                <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>Panel: You, Rachel Adams &middot; MS Teams</p>
+        {interviewingCandidates.map((c) => {
+          const motivation = candidateMotivations[c.id];
+          return (
+            <div key={c.id} className="card" style={{ borderLeft: "4px solid #7c3aed" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+                <div>
+                  <span className="badge badge-purple" style={{ marginBottom: 8 }}>Upcoming</span>
+                  <h3 style={{ fontSize: 18, fontWeight: 700 }}>{c.name} — {c.role} Interview</h3>
+                  <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>Panel: You, Rachel Adams &middot; MS Teams</p>
+                  {motivation && (
+                    <div style={{ marginTop: 6, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                      <WarmStatusBadge status={motivation.warmStatus} />
+                      <CounterOfferBadge risk={motivation.counterOfferRisk} detail={motivation.counterOfferDetail} />
+                    </div>
+                  )}
+                  {motivation && (
+                    <div style={{ marginTop: 6, padding: "4px 8px", background: "#faf5ff", borderRadius: 6, fontSize: 12, color: "#581c87", border: "1px solid #e9d5ff" }}>
+                      <strong>Why leaving:</strong> {motivation.whyLeaving}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    className="btn btn-outline btn-sm"
+                    onClick={() => showToast(`Interview pack for ${c.name} — documentation will be sent to your email.`, "info")}
+                  >
+                    <FileText size={14} /> Interview Pack
+                  </button>
+                  <button
+                    className="btn btn-outline btn-sm"
+                    onClick={() => showToast(`Opening ${c.cvFileName}...`, "info")}
+                  >
+                    <Paperclip size={14} /> CV
+                  </button>
+                  <button
+                    className="btn btn-outline btn-sm"
+                    onClick={() => showToast(`Scorecard for ${c.name} is ready. Complete it after the interview in the Score Interviews tab.`, "info")}
+                  >
+                    <Star size={14} /> Scorecard
+                  </button>
+                </div>
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  className="btn btn-outline btn-sm"
-                  onClick={() => showToast(`Interview pack for ${c.name} — documentation will be sent to your email.`, "info")}
-                >
-                  <FileText size={14} /> Interview Pack
-                </button>
-                <button
-                  className="btn btn-outline btn-sm"
-                  onClick={() => showToast(`Scorecard for ${c.name} is ready. Complete it after the interview in the Score Interviews tab.`, "info")}
-                >
-                  <Star size={14} /> Scorecard
-                </button>
+              <div style={{ marginTop: 12, padding: 10, background: c.rtw === "verified" ? "#f0fdf4" : "#fffbeb", borderRadius: 8, fontSize: 12 }}>
+                <strong>Right to Work:</strong> {c.visaDetails}
+                {c.rtw === "verified" && " — RTW verified."}
+                {c.rtw === "requires_sponsorship" && " — Sponsorship required. Consult HR before making an offer."}
+                {c.rtw === "time_limited" && ` — Visa expires ${c.visaExpiry}. Flag to HR if proceeding to offer.`}
               </div>
             </div>
-            <div style={{ marginTop: 12, padding: 10, background: c.rtw === "verified" ? "#f0fdf4" : "#fffbeb", borderRadius: 8, fontSize: 12 }}>
-              <strong>Right to Work:</strong> {c.visaDetails}
-              {c.rtw === "verified" && " — RTW verified."}
-              {c.rtw === "requires_sponsorship" && " — Sponsorship required. Consult HR before making an offer."}
-              {c.rtw === "time_limited" && ` — Visa expires ${c.visaExpiry}. Flag to HR if proceeding to offer.`}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="card">
@@ -636,18 +892,34 @@ function ScoringTab({
   interviewingCandidates: Candidate[];
   showToast: (msg: string, type?: "success" | "error" | "info" | "warning") => void;
 }) {
-  const competencies = ["Safeguarding Knowledge", "Assessment Skills", "Partnership Working", "Communication", "Professional Development"];
+  const competencies = [
+    { name: "Safeguarding Knowledge & Practice", desc: "Understanding of child protection frameworks, s47, PLO, thresholds" },
+    { name: "Assessment & Analysis Skills", desc: "Ability to gather info, analyse risk, write clear assessments" },
+    { name: "Partnership Working & Communication", desc: "Multi-agency collaboration, family engagement, professional communication" },
+    { name: "Professional Development & Reflective Practice", desc: "Commitment to CPD, use of supervision, reflective capacity" },
+    { name: "Values, Ethics & Anti-Discriminatory Practice", desc: "BASW Code of Ethics, anti-oppressive practice, cultural competence" },
+  ];
 
   const [scores, setScores] = useState<Record<string, Record<number, number>>>({});
+  const [compNotes, setCompNotes] = useState<Record<string, Record<number, string>>>({});
+  const [strengths, setStrengths] = useState<Record<string, string>>({});
+  const [concerns, setConcerns] = useState<Record<string, string>>({});
+  const [recommendation, setRecommendation] = useState<Record<string, string>>({});
+  const [submitted, setSubmitted] = useState<Record<string, boolean>>({});
   const [selectedCandidate, setSelectedCandidate] = useState<string | null>(
     interviewingCandidates.length > 0 ? interviewingCandidates[0].id : null
   );
 
   const candidate = interviewingCandidates.find((c) => c.id === selectedCandidate);
   const candidateScores = selectedCandidate ? (scores[selectedCandidate] || {}) : {};
+  const candidateNotes = selectedCandidate ? (compNotes[selectedCandidate] || {}) : {};
+  const candidateStrengths = selectedCandidate ? (strengths[selectedCandidate] || "") : "";
+  const candidateConcerns = selectedCandidate ? (concerns[selectedCandidate] || "") : "";
+  const candidateRecommendation = selectedCandidate ? (recommendation[selectedCandidate] || "") : "";
+  const isSubmitted = selectedCandidate ? (submitted[selectedCandidate] || false) : false;
 
   const handleScore = (compIndex: number, score: number) => {
-    if (!selectedCandidate) return;
+    if (!selectedCandidate || isSubmitted) return;
     setScores((prev) => ({
       ...prev,
       [selectedCandidate]: {
@@ -657,14 +929,42 @@ function ScoringTab({
     }));
   };
 
+  const handleCompNote = (compIndex: number, note: string) => {
+    if (!selectedCandidate || isSubmitted) return;
+    setCompNotes((prev) => ({
+      ...prev,
+      [selectedCandidate]: {
+        ...(prev[selectedCandidate] || {}),
+        [compIndex]: note,
+      },
+    }));
+  };
+
   const handleSubmit = () => {
+    if (!selectedCandidate) return;
     const filledCount = Object.keys(candidateScores).length;
     if (filledCount < competencies.length) {
       showToast(`Please score all ${competencies.length} competencies before submitting. You have scored ${filledCount}.`, "warning");
       return;
     }
+    if (!candidateStrengths.trim()) {
+      showToast("Please complete the Strengths field before submitting.", "warning");
+      return;
+    }
+    if (!candidateConcerns.trim()) {
+      showToast("Please complete the Concerns field before submitting.", "warning");
+      return;
+    }
+    if (!candidateRecommendation) {
+      showToast("Please select an overall recommendation before submitting.", "warning");
+      return;
+    }
+    setSubmitted((prev) => ({ ...prev, [selectedCandidate]: true }));
     showToast(`Scores submitted for ${candidate?.name || "candidate"}. Panel consensus will be available once all members submit.`, "success");
   };
+
+  const totalScore = Object.values(candidateScores).reduce((a, b) => a + b, 0);
+  const avgScore = Object.keys(candidateScores).length > 0 ? (totalScore / Object.keys(candidateScores).length).toFixed(1) : "-";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -686,7 +986,7 @@ function ScoringTab({
               style={selectedCandidate === c.id ? { background: "#7c3aed", color: "white" } : {}}
               onClick={() => setSelectedCandidate(c.id)}
             >
-              {c.name}
+              {c.name} {submitted[c.id] ? " (Submitted)" : ""}
             </button>
           ))}
         </div>
@@ -694,79 +994,346 @@ function ScoringTab({
 
       {candidate && (
         <div className="card">
-          <div style={{ marginBottom: 16 }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700 }}>{candidate.name} — {candidate.role}</h3>
-            <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>Score independently before viewing panel consensus</p>
+          <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h3 style={{ fontSize: 18, fontWeight: 700 }}>{candidate.name} — {candidate.role}</h3>
+              <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>Score independently before viewing panel consensus</p>
+            </div>
+            {Object.keys(candidateScores).length > 0 && (
+              <div style={{ textAlign: "center", padding: "8px 16px", background: "#f3e8ff", borderRadius: 10 }}>
+                <div style={{ fontSize: 24, fontWeight: 800, color: "#7c3aed" }}>{avgScore}</div>
+                <div style={{ fontSize: 11, color: "#6b21a8", fontWeight: 600 }}>Avg Score</div>
+              </div>
+            )}
           </div>
 
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Competency</th>
-                  <th>Score (1-5)</th>
-                  <th>Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {competencies.map((comp, i) => (
-                  <tr key={i}>
-                    <td style={{ fontWeight: 600 }}>{comp}</td>
-                    <td>
-                      <div style={{ display: "flex", gap: 4 }}>
-                        {[1, 2, 3, 4, 5].map((n) => (
-                          <button
-                            key={n}
-                            onClick={() => handleScore(i, n)}
-                            style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: 6,
-                              border: "1px solid var(--border)",
-                              background: n <= (candidateScores[i] || 0) ? "#7c3aed" : "white",
-                              color: n <= (candidateScores[i] || 0) ? "white" : "var(--text-primary)",
-                              fontWeight: 600,
-                              cursor: "pointer",
-                            }}
-                          >
-                            {n}
-                          </button>
-                        ))}
-                      </div>
-                    </td>
-                    <td>
-                      <input type="text" placeholder="Key observations..." style={{ width: "100%", padding: "6px 10px", border: "1px solid var(--border)", borderRadius: 6, fontSize: 13 }} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {isSubmitted && (
+            <div style={{ padding: 12, background: "#f0fdf4", borderRadius: 8, marginBottom: 16, fontSize: 13, color: "#166534", fontWeight: 600 }}>
+              <CheckCircle2 size={16} style={{ display: "inline", verticalAlign: "text-bottom", marginRight: 6 }} />
+              Scores submitted. You will be able to view other panel members&apos; scores once they have also submitted.
+            </div>
+          )}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {competencies.map((comp, i) => (
+              <div key={i} style={{ padding: 16, background: "#f8fafc", borderRadius: 10, border: "1px solid var(--border)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{i + 1}. {comp.name}</div>
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{comp.desc}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button
+                        key={n}
+                        onClick={() => handleScore(i, n)}
+                        disabled={isSubmitted}
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 8,
+                          border: "2px solid " + (candidateScores[i] === n ? "#7c3aed" : "var(--border)"),
+                          background: candidateScores[i] === n ? "#7c3aed" : "white",
+                          color: candidateScores[i] === n ? "white" : "var(--text-primary)",
+                          fontWeight: 700,
+                          fontSize: 15,
+                          cursor: isSubmitted ? "not-allowed" : "pointer",
+                          opacity: isSubmitted ? 0.6 : 1,
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  value={candidateNotes[i] || ""}
+                  onChange={(e) => handleCompNote(i, e.target.value)}
+                  placeholder="Key observations for this competency..."
+                  disabled={isSubmitted}
+                  style={{ width: "100%", padding: "8px 12px", border: "1px solid var(--border)", borderRadius: 6, fontSize: 13, outline: "none", opacity: isSubmitted ? 0.6 : 1 }}
+                />
+              </div>
+            ))}
           </div>
 
           <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
             <div>
-              <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 4 }}>Overall Strengths (mandatory)</label>
-              <textarea placeholder="What were the candidate's key strengths?" style={{ width: "100%", padding: 10, border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, minHeight: 60 }} />
+              <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 4 }}>
+                Strengths <span style={{ color: "var(--status-red)" }}>*</span>
+              </label>
+              <textarea
+                value={candidateStrengths}
+                onChange={(e) => selectedCandidate && setStrengths((p) => ({ ...p, [selectedCandidate]: e.target.value }))}
+                placeholder="What were the candidate's key strengths in interview?"
+                disabled={isSubmitted}
+                style={{ width: "100%", padding: 10, border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, minHeight: 70, resize: "vertical", opacity: isSubmitted ? 0.6 : 1 }}
+              />
             </div>
             <div>
-              <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 4 }}>Concerns (mandatory)</label>
-              <textarea placeholder="Any concerns or areas for development?" style={{ width: "100%", padding: 10, border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, minHeight: 60 }} />
+              <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 4 }}>
+                Concerns <span style={{ color: "var(--status-red)" }}>*</span>
+              </label>
+              <textarea
+                value={candidateConcerns}
+                onChange={(e) => selectedCandidate && setConcerns((p) => ({ ...p, [selectedCandidate]: e.target.value }))}
+                placeholder="Any concerns or areas for development?"
+                disabled={isSubmitted}
+                style={{ width: "100%", padding: 10, border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, minHeight: 70, resize: "vertical", opacity: isSubmitted ? 0.6 : 1 }}
+              />
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button className="btn" style={{ background: "#7c3aed", color: "white" }} onClick={handleSubmit}>
-                Submit Scores
-              </button>
-              <button className="btn btn-outline" onClick={() => showToast("Draft saved. You can return to complete scoring later.", "info")}>
-                Save Draft
-              </button>
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 6 }}>
+                Overall Recommendation <span style={{ color: "var(--status-red)" }}>*</span>
+              </label>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[
+                  { value: "strong_hire", label: "Strong Hire", bg: "#166534", border: "#86efac" },
+                  { value: "hire", label: "Hire", bg: "#16a34a", border: "#86efac" },
+                  { value: "borderline", label: "Borderline", bg: "#d97706", border: "#fcd34d" },
+                  { value: "do_not_hire", label: "Do Not Hire", bg: "#dc2626", border: "#fca5a5" },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => selectedCandidate && !isSubmitted && setRecommendation((p) => ({ ...p, [selectedCandidate]: opt.value }))}
+                    disabled={isSubmitted}
+                    style={{
+                      padding: "10px 20px",
+                      borderRadius: 8,
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: isSubmitted ? "not-allowed" : "pointer",
+                      border: `2px solid ${candidateRecommendation === opt.value ? opt.bg : "var(--border)"}`,
+                      background: candidateRecommendation === opt.value ? opt.bg : "white",
+                      color: candidateRecommendation === opt.value ? "white" : "var(--text-primary)",
+                      opacity: isSubmitted ? 0.6 : 1,
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              {!isSubmitted && (
+                <>
+                  <button className="btn" style={{ background: "#7c3aed", color: "white" }} onClick={handleSubmit}>
+                    <Send size={16} /> Submit Scores
+                  </button>
+                  <button className="btn btn-outline" onClick={() => showToast("Draft saved. You can return to complete scoring later.", "info")}>
+                    Save Draft
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
-          <div style={{ marginTop: 16, padding: 10, background: "#f3e8ff", borderRadius: 8, fontSize: 12, color: "#6b21a8" }}>
+          <div style={{ marginTop: 16, padding: 12, background: "#f3e8ff", borderRadius: 8, fontSize: 12, color: "#6b21a8" }}>
             <strong>Note:</strong> You must submit your scores before you can view other panel members&apos; assessments. This prevents social proof bias and ensures independent evaluation.
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ─── Vacancy Request Tab ─────────────────────────────────────── */
+
+function VacancyRequestTab({
+  addVacancyRequest,
+  showToast,
+}: {
+  addVacancyRequest: (r: Parameters<ReturnType<typeof useData>["addVacancyRequest"]>[0]) => void;
+  showToast: (msg: string, type?: "success" | "error" | "info" | "warning") => void;
+}) {
+  const [form, setForm] = useState({
+    role: "",
+    team: "Children's Services",
+    grade: "",
+    salaryMin: "",
+    salaryMax: "",
+    description: "",
+    justification: "",
+    replacementFor: "",
+    isNewPost: false,
+    fundingApproved: false,
+    essential: "",
+    desirable: "",
+    currentCaseload: "",
+    teamSize: "",
+    atsReference: "",
+    internalSystem: "Jobtrain",
+  });
+
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleSubmit = () => {
+    if (!form.role.trim()) { showToast("Please enter a job title.", "warning"); return; }
+    if (!form.grade.trim()) { showToast("Please enter a grade.", "warning"); return; }
+    if (!form.justification.trim()) { showToast("Please provide a justification for this vacancy.", "warning"); return; }
+
+    addVacancyRequest({
+      council: "Manchester CC",
+      requestedBy: "James Okafor",
+      requestedByRole: "hiring_manager",
+      role: form.role,
+      team: form.team,
+      grade: form.grade,
+      salaryMin: form.salaryMin,
+      salaryMax: form.salaryMax,
+      description: form.description,
+      essential: form.essential,
+      desirable: form.desirable,
+      justification: form.justification + (form.currentCaseload ? ` | Current caseload per SW: ${form.currentCaseload}` : "") + (form.teamSize ? ` | Team size: ${form.teamSize}` : ""),
+      replacementFor: form.isNewPost ? "New post" : form.replacementFor,
+      fundingApproved: form.fundingApproved,
+      atsReference: form.atsReference,
+      internalSystem: form.internalSystem,
+    });
+    setSubmitted(true);
+  };
+
+  if (submitted) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div className="card" style={{ textAlign: "center", padding: 40 }}>
+          <CheckCircle2 size={48} color="#16a34a" style={{ margin: "0 auto 16px" }} />
+          <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>Vacancy Request Submitted</h2>
+          <p style={{ color: "var(--text-secondary)", fontSize: 14, maxWidth: 500, margin: "0 auto" }}>
+            Your request for <strong>{form.role}</strong> has been sent to the recruitment team for approval.
+            You will be notified once it has been reviewed.
+          </p>
+          <button
+            className="btn"
+            style={{ background: "#7c3aed", color: "white", marginTop: 24 }}
+            onClick={() => {
+              setForm({ role: "", team: "Children's Services", grade: "", salaryMin: "", salaryMax: "", description: "", justification: "", replacementFor: "", isNewPost: false, fundingApproved: false, essential: "", desirable: "", currentCaseload: "", teamSize: "", atsReference: "", internalSystem: "Jobtrain" });
+              setSubmitted(false);
+            }}
+          >
+            <PlusCircle size={16} /> Submit Another Request
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <h2 style={{ fontSize: 24, fontWeight: 700 }}>Request a New Vacancy</h2>
+      <p style={{ color: "var(--text-secondary)" }}>Submit a request for a new or replacement post. The recruitment team will review and approve before advertising.</p>
+
+      <div className="card">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <FormField label="Job Title" required>
+            <input style={inputStyle} value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} placeholder="e.g. Social Worker — Looked After Children" />
+          </FormField>
+          <FormField label="Team" required>
+            <input style={inputStyle} value={form.team} onChange={(e) => setForm((f) => ({ ...f, team: e.target.value }))} placeholder="e.g. Children's Services" />
+          </FormField>
+          <FormField label="Grade" required>
+            <input style={inputStyle} value={form.grade} onChange={(e) => setForm((f) => ({ ...f, grade: e.target.value }))} placeholder="e.g. Grade 9" />
+          </FormField>
+          <FormField label="Salary Range">
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input style={{ ...inputStyle, width: "auto", flex: 1 }} value={form.salaryMin} onChange={(e) => setForm((f) => ({ ...f, salaryMin: e.target.value }))} placeholder="Min (e.g. 37336)" />
+              <span style={{ color: "var(--text-secondary)" }}>to</span>
+              <input style={{ ...inputStyle, width: "auto", flex: 1 }} value={form.salaryMax} onChange={(e) => setForm((f) => ({ ...f, salaryMax: e.target.value }))} placeholder="Max (e.g. 40476)" />
+            </div>
+          </FormField>
+        </div>
+
+        <FormField label="Role Description">
+          <textarea style={textareaStyle} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Describe the role and key responsibilities..." />
+        </FormField>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <FormField label="Replacement or New Post?" required>
+            <div style={{ display: "flex", gap: 12, marginBottom: 8 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}>
+                <input type="radio" name="postType" checked={!form.isNewPost} onChange={() => setForm((f) => ({ ...f, isNewPost: false }))} /> Replacement
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}>
+                <input type="radio" name="postType" checked={form.isNewPost} onChange={() => setForm((f) => ({ ...f, isNewPost: true }))} /> New Post
+              </label>
+            </div>
+            {!form.isNewPost && (
+              <input style={inputStyle} value={form.replacementFor} onChange={(e) => setForm((f) => ({ ...f, replacementFor: e.target.value }))} placeholder="Name of leaver (e.g. Sarah Thompson)" />
+            )}
+          </FormField>
+          <FormField label="Budget Approved?">
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", padding: "10px 0" }}>
+              <input type="checkbox" checked={form.fundingApproved} onChange={(e) => setForm((f) => ({ ...f, fundingApproved: e.target.checked }))} style={{ width: 18, height: 18 }} />
+              <span>Yes, funding/budget has been approved for this post</span>
+            </label>
+          </FormField>
+        </div>
+
+        <FormField label="Justification" required>
+          <textarea style={textareaStyle} value={form.justification} onChange={(e) => setForm((f) => ({ ...f, justification: e.target.value }))} placeholder="Why is this role needed? Include impact on caseloads, team capacity, risk if unfilled..." />
+        </FormField>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <FormField label="Essential Criteria">
+            <textarea style={textareaStyle} value={form.essential} onChange={(e) => setForm((f) => ({ ...f, essential: e.target.value }))} placeholder="e.g. SWE registered, 2+ years PQE in children's services" />
+          </FormField>
+          <FormField label="Desirable Criteria">
+            <textarea style={textareaStyle} value={form.desirable} onChange={(e) => setForm((f) => ({ ...f, desirable: e.target.value }))} placeholder="e.g. Practice educator qualification, court work experience" />
+          </FormField>
+        </div>
+
+        <div style={{ padding: 16, background: "#f3e8ff", borderRadius: 10, border: "1px solid #e9d5ff" }}>
+          <h4 style={{ fontSize: 14, fontWeight: 700, color: "#6b21a8", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+            <Building2 size={16} /> Caseload & Team Information
+          </h4>
+          <p style={{ fontSize: 12, color: "#581c87", marginBottom: 12 }}>This helps PSP match candidates who are looking for the right caseload and team environment.</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="Current Caseload Per SW">
+              <input style={inputStyle} value={form.currentCaseload} onChange={(e) => setForm((f) => ({ ...f, currentCaseload: e.target.value }))} placeholder="e.g. 18-22 cases" />
+            </FormField>
+            <FormField label="Team Size">
+              <input style={inputStyle} value={form.teamSize} onChange={(e) => setForm((f) => ({ ...f, teamSize: e.target.value }))} placeholder="e.g. 6 SWs + 1 TM + 2 FSWs" />
+            </FormField>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
+          <FormField label="ATS Reference (if known)">
+            <input style={inputStyle} value={form.atsReference} onChange={(e) => setForm((f) => ({ ...f, atsReference: e.target.value }))} placeholder="e.g. JT-MCC-2026-0847" />
+          </FormField>
+          <FormField label="Internal System">
+            <select style={selectStyle} value={form.internalSystem} onChange={(e) => setForm((f) => ({ ...f, internalSystem: e.target.value }))}>
+              <option value="Jobtrain">Jobtrain</option>
+              <option value="Eploy">Eploy</option>
+              <option value="Tribepad">Tribepad</option>
+              <option value="iTrent">iTrent</option>
+              <option value="Oracle">Oracle</option>
+              <option value="Manual">Manual</option>
+              <option value="None">None</option>
+            </select>
+          </FormField>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+          <button className="btn" style={{ background: "#7c3aed", color: "white", padding: "12px 32px", fontSize: 15 }} onClick={handleSubmit}>
+            <Send size={16} /> Submit Vacancy Request
+          </button>
+          <button className="btn btn-outline" onClick={() => showToast("Draft saved.", "info")}>
+            Save Draft
+          </button>
+        </div>
+      </div>
+
+      <div className="gdpr-notice">
+        <Shield size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+        <span>
+          <strong>Approval Process</strong> — Your request will be reviewed by the recruitment team. Once approved, PSP will begin sourcing candidates. You will be notified at each stage.
+        </span>
+      </div>
     </div>
   );
 }

@@ -74,6 +74,9 @@ export default function ImportVacancyForm({ open, onClose, council }: { open: bo
       importedFrom: method === "manual" ? "manual" : "ats_import",
       acceptsSponsorship: true,
       sponsorLicenceHeld: council === "Manchester CC" || council === "Salford CC",
+      caseloadInfo: "",
+      teamSize: "",
+      supervisionFreq: "",
     });
     reset();
   };
