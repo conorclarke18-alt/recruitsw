@@ -5,6 +5,7 @@ import CreateVacancyForm from "./CreateVacancyForm";
 import AddCandidateForm from "./AddCandidateForm";
 import EditVacancyForm, { SalaryBenchmark } from "./EditVacancyForm";
 import EmailPreview, { EmailType } from "./EmailPreview";
+import PipelineBoard from "./PipelineBoard";
 import {
   Shield, BarChart3, Users, Briefcase, FileCheck, Clock, AlertTriangle,
   ChevronRight, Search, Filter, Plus, Upload, Send, Eye, CheckCircle2,
@@ -72,6 +73,7 @@ export default function PSPView() {
 
   const tabs = [
     { id: "dashboard", label: "Command Centre", icon: <BarChart3 size={16} /> },
+    { id: "pipeline", label: "Pipeline", icon: <TrendingUp size={16} /> },
     { id: "vacancies", label: "Vacancies", icon: <Briefcase size={16} /> },
     { id: "candidates", label: "Candidates", icon: <Users size={16} /> },
     { id: "compliance", label: "Compliance Hub", icon: <FileCheck size={16} /> },
@@ -109,6 +111,7 @@ export default function PSPView() {
       {/* Content */}
       <main style={{ padding: 24, maxWidth: 1400, margin: "0 auto" }}>
         {activeTab === "dashboard" && <DashboardTab onCreateVacancy={() => setShowCreateVacancy(true)} onAddCandidate={() => setShowAddCandidate(true)} />}
+        {activeTab === "pipeline" && <PipelineBoard onSelectCandidate={(c) => { setSelectedCandidate(c); setActiveTab("candidates"); }} />}
         {activeTab === "vacancies" && <VacanciesTab onCreateVacancy={() => setShowCreateVacancy(true)} />}
         {activeTab === "candidates" && (
           selectedCandidate
@@ -869,6 +872,9 @@ function CandidateDetail({ candidate: initialCandidate, onBack }: { candidate: C
         <p style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 8 }}>Click a compliance item to cycle its status.</p>
       </div>
 
+      {/* Communication Log */}
+      <CommunicationLog candidate={c} />
+
       {/* GDPR Notice */}
       <div className="gdpr-notice">
         <Shield size={16} style={{ flexShrink: 0, marginTop: 2 }} />
@@ -877,6 +883,73 @@ function CandidateDetail({ candidate: initialCandidate, onBack }: { candidate: C
           {c.crossCouncil && " Cross-council flag shown with candidate's explicit consent under Article 6(1)(a). Candidate can withdraw consent at any time."}
           {" "}Retention: 6 months post-decision for unsuccessful applications. DSAR requests via candidate portal.
         </div>
+      </div>
+    </div>
+  );
+}
+
+function CommunicationLog({ candidate: c }: { candidate: Candidate }) {
+  const { updateCandidate, showToast } = useData();
+  const [newNote, setNewNote] = useState("");
+  const [noteType, setNoteType] = useState<"call" | "email" | "note" | "sms">("note");
+
+  const addNote = () => {
+    if (!newNote.trim()) return;
+    const entry = {
+      date: new Date().toISOString().split("T")[0],
+      time: new Date().toTimeString().slice(0, 5),
+      type: noteType,
+      message: newNote.trim(),
+      by: "Conor Clarke, PSP",
+    };
+    updateCandidate(c.id, { communicationLog: [...c.communicationLog, entry] });
+    setNewNote("");
+    showToast("Note added to communication log", "success");
+  };
+
+  const typeIcons: Record<string, string> = { call: "📞", email: "📧", note: "📝", system: "⚙️", sms: "💬" };
+
+  return (
+    <div className="card">
+      <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Communication Log</h3>
+
+      {/* Add Note */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <select
+          value={noteType}
+          onChange={e => setNoteType(e.target.value as typeof noteType)}
+          style={{ padding: "8px 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, width: 100 }}
+        >
+          <option value="call">📞 Call</option>
+          <option value="email">📧 Email</option>
+          <option value="note">📝 Note</option>
+          <option value="sms">💬 SMS</option>
+        </select>
+        <input
+          type="text"
+          value={newNote}
+          onChange={e => setNewNote(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && addNote()}
+          placeholder="Add a note, call summary, or update..."
+          style={{ flex: 1, padding: "8px 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13 }}
+        />
+        <button className="btn btn-primary btn-sm" onClick={addNote}>Add</button>
+      </div>
+
+      {/* Log Entries */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 300, overflowY: "auto" }}>
+        {[...c.communicationLog].reverse().map((entry, i) => (
+          <div key={i} style={{ display: "flex", gap: 10, padding: 10, background: entry.type === "system" ? "#f8fafc" : "white", borderRadius: 8, border: "1px solid var(--border)" }}>
+            <span style={{ fontSize: 16, flexShrink: 0 }}>{typeIcons[entry.type] || "📋"}</span>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 13, lineHeight: 1.5 }}>{entry.message}</p>
+              <p style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 4 }}>{entry.date} {entry.time} — {entry.by}</p>
+            </div>
+          </div>
+        ))}
+        {c.communicationLog.length === 0 && (
+          <p style={{ fontSize: 13, color: "var(--text-secondary)", fontStyle: "italic", textAlign: "center", padding: 12 }}>No communication history yet.</p>
+        )}
       </div>
     </div>
   );

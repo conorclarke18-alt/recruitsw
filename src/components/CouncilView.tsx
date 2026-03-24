@@ -659,7 +659,30 @@ function CouncilReports() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <h2 style={{ fontSize: 24, fontWeight: 700 }}>Recruitment Reports</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2 style={{ fontSize: 24, fontWeight: 700 }}>Recruitment Reports</h2>
+        <button className="btn btn-council" onClick={() => {
+          const rows = [
+            ["Metric", "Value"],
+            ["Vacancies Filled", String(filledCount)],
+            ["Avg Time-to-Hire (days)", String(avgDays)],
+            ["Cost per Hire (PSP)", "3200"],
+            ["Cost per Hire (Agency avg)", "8500"],
+            ["Savings vs Agency", String(filledCount * 5300)],
+            ["Active Vacancies", String(mccVacancies.filter(v => v.status === "live").length)],
+            ["Candidates in Pipeline", String(mccCandidates.length)],
+            ...sources.map(s => [`Source: ${s.source}`, `${s.pct}%`]),
+          ];
+          const csv = rows.map(r => r.join(",")).join("\n");
+          const blob = new Blob([csv], { type: "text/csv" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url; a.download = `RecruitSW-Report-Manchester-${new Date().toISOString().split("T")[0]}.csv`;
+          a.click(); URL.revokeObjectURL(url);
+        }}>
+          <Download size={16} /> Export CSV Report
+        </button>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
         <div className="card">
           <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>This Quarter</h3>
